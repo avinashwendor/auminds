@@ -13,15 +13,17 @@ import {
 import CourseWorkspaceClient from './CourseWorkspaceClient';
 
 interface PageProps {
-  params: { slug: string };
-  searchParams: { lessonId?: string };
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ lessonId?: string | string[] }>;
 }
 
 export default async function CoursePage({ params, searchParams }: PageProps) {
+  const [{ slug }, query] = await Promise.all([params, searchParams]);
+  const lessonId = Array.isArray(query.lessonId) ? query.lessonId[0] : query.lessonId;
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const courseBase = await getCourseBySlug(params.slug);
+  const courseBase = await getCourseBySlug(slug);
   if (!courseBase) notFound();
 
   const [course, completedLessonIds, isEnrolled] = await Promise.all([
@@ -34,8 +36,8 @@ export default async function CoursePage({ params, searchParams }: PageProps) {
   if (!course) notFound();
 
   const allLessons = course.modules.flatMap((module: any) => module.lessons || []);
-  const activeLesson = searchParams.lessonId
-    ? allLessons.find((lesson: any) => lesson.id === searchParams.lessonId) || allLessons[0] || null
+  const activeLesson = lessonId
+    ? allLessons.find((lesson: any) => lesson.id === lessonId) || allLessons[0] || null
     : allLessons[0] || null;
 
   let activeQuiz: any = null;

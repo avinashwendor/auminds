@@ -8,8 +8,7 @@ export { createSessionToken, verifySessionToken };
 export async function setSessionCookie(user: SessionUser) {
   try {
     const token = await createSessionToken(user);
-    const cookieStore = cookies() as any;
-    const store = typeof cookieStore?.then === 'function' ? await cookieStore : cookieStore;
+    const store = await cookies();
     store.set(SESSION_COOKIE_NAME, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -24,8 +23,7 @@ export async function setSessionCookie(user: SessionUser) {
 
 export async function clearSessionCookie() {
   try {
-    const cookieStore = cookies() as any;
-    const store = typeof cookieStore?.then === 'function' ? await cookieStore : cookieStore;
+    const store = await cookies();
     store.delete(SESSION_COOKIE_NAME);
   } catch (err) {
     console.error('Error clearing session cookie:', err);
@@ -34,8 +32,7 @@ export async function clearSessionCookie() {
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
   try {
-    const cookieStore = cookies() as any;
-    const store = typeof cookieStore?.then === 'function' ? await cookieStore : cookieStore;
+    const store = await cookies();
     const token = store.get(SESSION_COOKIE_NAME)?.value;
     if (!token) return null;
     return await verifySessionToken(token);

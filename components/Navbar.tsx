@@ -33,6 +33,7 @@ const studentLinks = [
   { href: '/dashboard/leaderboard', label: 'Leaderboard', code: '02', icon: Trophy },
   { href: '/dashboard/community', label: 'Community', code: '03', icon: MessageSquare },
   { href: '/dashboard/jobs', label: 'Job board', code: '04', icon: BriefcaseBusiness },
+  { href: '/code-editor', label: 'Code editor', code: '05', icon: Code2 },
 ];
 
 const adminLinks = [
@@ -42,6 +43,7 @@ const adminLinks = [
   { href: '/admin/quizzes', label: 'Quizzes', code: '04', icon: HelpCircle },
   { href: '/admin/assignments', label: 'Reviews', code: '05', icon: CheckSquare },
   { href: '/admin/jobs', label: 'Job board', code: '06', icon: BriefcaseBusiness },
+  { href: '/code-editor', label: 'Code editor', code: '07', icon: Code2 },
 ];
 
 function Brand({ compact = false }: { compact?: boolean }) {

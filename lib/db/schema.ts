@@ -1,9 +1,9 @@
-import { pgTable, uuid, text, integer, boolean, timestamp, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, boolean, timestamp, jsonb } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // Users table
 export const users = pgTable('users', {
-  id: uuid('id').defaultRandom().primaryKey(),
+  id: text('id').primaryKey(),
   username: text('username').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   name: text('name').notNull(),
@@ -15,7 +15,7 @@ export const users = pgTable('users', {
 
 // Courses table
 export const courses = pgTable('courses', {
-  id: uuid('id').defaultRandom().primaryKey(),
+  id: text('id').primaryKey(),
   title: text('title').notNull(),
   slug: text('slug').notNull().unique(),
   description: text('description').notNull(),
@@ -27,24 +27,24 @@ export const courses = pgTable('courses', {
 
 // Course Enrollments (Admin assigns courses to specific students)
 export const courseEnrollments = pgTable('course_enrollments', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  courseId: uuid('course_id').notNull().references(() => courses.id, { onDelete: 'cascade' }),
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  courseId: text('course_id').notNull().references(() => courses.id, { onDelete: 'cascade' }),
   enrolledAt: timestamp('enrolled_at').defaultNow().notNull(),
 });
 
 // Modules table
 export const modules = pgTable('modules', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  courseId: uuid('course_id').notNull().references(() => courses.id, { onDelete: 'cascade' }),
+  id: text('id').primaryKey(),
+  courseId: text('course_id').notNull().references(() => courses.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
   orderIndex: integer('order_index').notNull(),
 });
 
 // Lessons table (Supports Video, Markdown, and Monaco Code Editor types)
 export const lessons = pgTable('lessons', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  moduleId: uuid('module_id').notNull().references(() => modules.id, { onDelete: 'cascade' }),
+  id: text('id').primaryKey(),
+  moduleId: text('module_id').notNull().references(() => modules.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
   type: text('type', { enum: ['video', 'markdown', 'code'] }).notNull().default('video'),
   videoUrl: text('video_url'),
@@ -59,17 +59,17 @@ export const lessons = pgTable('lessons', {
 
 // Lesson Completions
 export const lessonCompletions = pgTable('lesson_completions', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  lessonId: uuid('lesson_id').notNull().references(() => lessons.id, { onDelete: 'cascade' }),
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  lessonId: text('lesson_id').notNull().references(() => lessons.id, { onDelete: 'cascade' }),
   completedAt: timestamp('completed_at').defaultNow().notNull(),
 });
 
 // Quizzes
 export const quizzes = pgTable('quizzes', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  lessonId: uuid('lesson_id').references(() => lessons.id, { onDelete: 'cascade' }),
-  courseId: uuid('course_id').references(() => courses.id, { onDelete: 'cascade' }),
+  id: text('id').primaryKey(),
+  lessonId: text('lesson_id').references(() => lessons.id, { onDelete: 'cascade' }),
+  courseId: text('course_id').references(() => courses.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
   passingScore: integer('passing_score').notNull().default(70),
   points: integer('points').notNull().default(25),
@@ -77,8 +77,8 @@ export const quizzes = pgTable('quizzes', {
 
 // Quiz Questions
 export const quizQuestions = pgTable('quiz_questions', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  quizId: uuid('quiz_id').notNull().references(() => quizzes.id, { onDelete: 'cascade' }),
+  id: text('id').primaryKey(),
+  quizId: text('quiz_id').notNull().references(() => quizzes.id, { onDelete: 'cascade' }),
   question: text('question').notNull(),
   options: jsonb('options').$type<string[]>().notNull(),
   correctOptionIndex: integer('correct_option_index').notNull(),
@@ -87,9 +87,9 @@ export const quizQuestions = pgTable('quiz_questions', {
 
 // Quiz Attempts
 export const quizAttempts = pgTable('quiz_attempts', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  quizId: uuid('quiz_id').notNull().references(() => quizzes.id, { onDelete: 'cascade' }),
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  quizId: text('quiz_id').notNull().references(() => quizzes.id, { onDelete: 'cascade' }),
   score: integer('score').notNull(),
   passed: boolean('passed').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -97,9 +97,9 @@ export const quizAttempts = pgTable('quiz_attempts', {
 
 // Assignments
 export const assignments = pgTable('assignments', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  lessonId: uuid('lesson_id').references(() => lessons.id, { onDelete: 'cascade' }),
-  courseId: uuid('course_id').references(() => courses.id, { onDelete: 'cascade' }),
+  id: text('id').primaryKey(),
+  lessonId: text('lesson_id').references(() => lessons.id, { onDelete: 'cascade' }),
+  courseId: text('course_id').references(() => courses.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
   instructions: text('instructions').notNull(),
   maxPoints: integer('max_points').notNull().default(50),
@@ -107,9 +107,9 @@ export const assignments = pgTable('assignments', {
 
 // Assignment Submissions (Reviewed and accepted/rejected by Admin)
 export const assignmentSubmissions = pgTable('assignment_submissions', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  assignmentId: uuid('assignment_id').notNull().references(() => assignments.id, { onDelete: 'cascade' }),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  id: text('id').primaryKey(),
+  assignmentId: text('assignment_id').notNull().references(() => assignments.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   repoUrl: text('repo_url').notNull(),
   demoUrl: text('demo_url'),
   notes: text('notes'),
@@ -122,7 +122,7 @@ export const assignmentSubmissions = pgTable('assignment_submissions', {
 
 // Job Postings Section
 export const jobPostings = pgTable('job_postings', {
-  id: uuid('id').defaultRandom().primaryKey(),
+  id: text('id').primaryKey(),
   title: text('title').notNull(),
   company: text('company').notNull(),
   logoUrl: text('logo_url'),
@@ -136,9 +136,9 @@ export const jobPostings = pgTable('job_postings', {
 
 // Community Lounge Chat Messages
 export const communityMessages = pgTable('community_messages', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  courseId: uuid('course_id').references(() => courses.id, { onDelete: 'cascade' }),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  id: text('id').primaryKey(),
+  courseId: text('course_id').references(() => courses.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   content: text('content').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });

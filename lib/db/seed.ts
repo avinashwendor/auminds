@@ -72,7 +72,7 @@ async function main() {
 
     console.log('✅ AUMINDS Database Seeding Completed Successfully!');
   } catch (err) {
-    console.warn('⚠️ Postgres direct seed skipped (Local offline mode active). Memory store ready!');
+    console.error('❌ Postgres direct seed error:', err);
   }
 
   process.exit(0);

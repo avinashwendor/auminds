@@ -2,7 +2,13 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from './schema';
 
-const connectionString = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/auminds';
+const connectionString =
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_URL ||
+  process.env.DATABASE_PRIVATE_URL ||
+  process.env.DATABASE_PUBLIC_URL ||
+  'postgres://postgres:postgres@localhost:5432/auminds';
+
 const configuredPoolMax = Number.parseInt(process.env.DATABASE_POOL_MAX || '5', 10);
 const poolMax = Number.isFinite(configuredPoolMax) && configuredPoolMax > 0 ? configuredPoolMax : 5;
 
@@ -31,10 +37,11 @@ export async function isDatabaseAvailable(): Promise<boolean> {
   try {
     const result = await Promise.race([
       client`SELECT 1`,
-      new Promise((_, reject) => setTimeout(() => reject(new Error('DB Timeout')), 1500)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('DB Timeout')), 5000)),
     ]);
     dbAvailabilityState.available = Array.isArray(result) && result.length > 0;
   } catch (err) {
+    console.warn('[DB Check] Database connection check failed or timed out:', err);
     dbAvailabilityState.available = false;
   }
 

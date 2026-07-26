@@ -1,0 +1,138 @@
+@import "tw-animate-css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+THESIS: A live learning concourse replaces decorative SaaS glass and card grids.
+OWN-WORLD: Platform black, chalk type, steel rules, signal amber, fixed data cells.
+STORY: See status, identify the next task, enter the workspace, complete and review.
+FIRST VIEWPORT: Stable navigation beside a ruled operations board; the next action is amber.
+FORM: Concourse board, chosen challenger; fixed-column staging; seed e23da8ef.
+*/
+
+@layer base {
+  :root, .dark {
+    --background: 210 11% 7%;
+    --foreground: 55 24% 93%;
+    --card: 210 10% 10%;
+    --card-foreground: 55 24% 93%;
+    --popover: 210 10% 9%;
+    --popover-foreground: 55 24% 93%;
+    --primary: 42 90% 54%;
+    --primary-foreground: 210 11% 7%;
+    --secondary: 207 10% 17%;
+    --secondary-foreground: 55 24% 93%;
+    --muted: 207 9% 14%;
+    --muted-foreground: 210 7% 64%;
+    --accent: 42 90% 54%;
+    --accent-foreground: 210 11% 7%;
+    --destructive: 5 80% 67%;
+    --destructive-foreground: 210 11% 7%;
+    --border: 207 10% 20%;
+    --input: 207 10% 22%;
+    --ring: 42 90% 54%;
+    --radius: .25rem;
+    --chart-1: 42 90% 54%;
+    --chart-2: 151 48% 58%;
+    --chart-3: 5 80% 67%;
+    --chart-4: 202 52% 62%;
+    --chart-5: 210 7% 64%;
+    --sidebar: 210 11% 6%;
+    --sidebar-foreground: 55 24% 93%;
+    --sidebar-primary: 42 90% 54%;
+    --sidebar-primary-foreground: 210 11% 7%;
+    --sidebar-accent: 207 10% 17%;
+    --sidebar-accent-foreground: 55 24% 93%;
+    --sidebar-border: 207 10% 20%;
+    --sidebar-ring: 42 90% 54%;
+  }
+  * { @apply border-border; }
+  html { background: #101214; }
+  body { @apply bg-background text-foreground; font-family: Arial, Helvetica, sans-serif; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
+  ::selection { background: #f3b61f; color: #101214; }
+  :focus-visible { outline: 2px solid #f3b61f; outline-offset: 2px; }
+}
+
+@layer components {
+  .glass-panel, .glass-card {
+    background: #171a1d !important;
+    border: 1px solid #2b3035 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    transform: none !important;
+  }
+  .glass-card:hover { border-color: #555d64 !important; transform: none !important; box-shadow: none !important; }
+  .gradient-text, .gradient-text-blue, .gradient-text-gold {
+    background: none !important;
+    color: #f3b61f !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+  .gradient-border::before, .shimmer::after { display: none !important; }
+  .app-rail + main, .app-rail ~ main { width: auto; }
+  .board-rule { border-top: 1px solid #2b3035; }
+  .board-label { font: 700 .69rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; color: #9ba3aa; }
+  .board-value { font-family: "Arial Narrow", Arial, sans-serif; font-weight: 800; letter-spacing: -.015em; }
+  .signal-dot { width: .5rem; height: .5rem; border-radius: 50%; background: #f3b61f; box-shadow: 0 0 0 3px rgba(243,182,31,.12); }
+}
+
+/* Compatibility pass: legacy route markup inherits the new signal system. */
+[class*="text-indigo-"], [class*="text-purple-"] { color: #f3b61f !important; }
+[class*="border-indigo-"], [class*="border-purple-"] { border-color: rgba(243,182,31,.38) !important; }
+[class*="bg-indigo-"], [class*="bg-purple-"] { background-color: rgba(243,182,31,.12) !important; }
+[class*="shadow-indigo-"], [class*="shadow-purple-"] { --tw-shadow-color: transparent !important; box-shadow: none !important; }
+[class*="from-indigo-"], [class*="from-purple-"], [class*="via-purple-"], [class*="to-purple-"], [class*="to-pink-"] {
+  --tw-gradient-from: #f3b61f var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: #f3b61f var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+[class*="rounded-3xl"], [class*="rounded-\[2rem\]"] { border-radius: .5rem !important; }
+[class*="rounded-2xl"] { border-radius: .375rem !important; }
+[class*="backdrop-blur"] { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+[class*="hover:scale-"], [class*="group-hover:scale-"] { transform: none !important; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #101214; }
+::-webkit-scrollbar-thumb { background: #3a4147; border: 2px solid #101214; }
+::-webkit-scrollbar-thumb:hover { background: #f3b61f; }
+
+@keyframes board-arrive {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0); }
+}
+@keyframes landing-reveal {
+  from { opacity: .18; clip-path: inset(0 0 18% 0); transform: translateY(1.5rem); }
+  to { opacity: 1; clip-path: inset(0); transform: translateY(0); }
+}
+@keyframes workspace-reveal {
+  from { opacity: .25; clip-path: inset(0 0 0 18%); }
+  to { opacity: 1; clip-path: inset(0); }
+}
+.animate-board-arrive { animation: board-arrive .55s cubic-bezier(.2,.8,.2,1) both; }
+.animate-fade-up { animation: board-arrive .4s cubic-bezier(.2,.8,.2,1) both; }
+.animate-float, .animate-pulse-glow, .animate-spin-slow { animation: none !important; }
+.landing-hero-copy { animation: landing-reveal .75s cubic-bezier(.16,1,.3,1) both; }
+.landing-workspace { animation: workspace-reveal .9s .12s cubic-bezier(.16,1,.3,1) both; }
+.landing-stage, .landing-signal-row { transition: background-color 180ms ease, color 180ms ease; }
+.landing-stage:hover { background: rgba(16,18,20,.055); }
+.landing-stage:hover .landing-stage-index { color: #101214; }
+.landing-signal-row:hover { background: rgba(241,240,232,.025); }
+
+@media (min-width: 768px) {
+  .app-rail ~ main { margin-left: 16.5rem; }
+  .app-rail ~ .course-workspace { margin-left: 16.5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+@media print {
+  body { background: white !important; color: black !important; }
+  body:has(.certificate-canvas) * { visibility: hidden; }
+  body:has(.certificate-canvas) .certificate-canvas, body:has(.certificate-canvas) .certificate-canvas * { visibility: visible; }
+  .certificate-canvas { position: fixed !important; inset: 0 !important; width: 100% !important; min-height: 100vh !important; border-color: #9b7410 !important; }
+  .app-rail { display: none !important; }
+  .glass-panel, .glass-card { background: white !important; color: black !important; border-color: #bbb !important; }
+}

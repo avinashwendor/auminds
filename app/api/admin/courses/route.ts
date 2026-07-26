@@ -28,8 +28,8 @@ export async function POST(req: Request) {
     }
 
     if (action === 'createModule') {
-      const module = await createModule(body);
-      return NextResponse.json({ module });
+      const createdModule = await createModule(body);
+      return NextResponse.json({ module: createdModule });
     }
 
     if (action === 'createLesson') {

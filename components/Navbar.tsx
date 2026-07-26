@@ -88,18 +88,39 @@ export default function Navbar({ user }: NavbarProps) {
     <nav aria-label={mobile ? 'Mobile navigation' : 'Primary navigation'} className={styles.navList}>
       {links.map(({ href, label, code, icon: Icon }) => {
         const active = isActive(href);
+        const className = cn(styles.navLink, active && styles.navLinkActive);
+        const content = (
+          <>
+            <span className={styles.navCode}>{code}</span>
+            <Icon aria-hidden="true" />
+            <span>{label}</span>
+            {active && <span className={styles.activeSignal} aria-hidden="true" />}
+          </>
+        );
+
+        if (href === '/code-editor') {
+          return (
+            <a
+              key={href}
+              href={href}
+              onClick={mobile ? () => setIsMobileOpen(false) : undefined}
+              aria-current={active ? 'page' : undefined}
+              className={className}
+            >
+              {content}
+            </a>
+          );
+        }
+
         return (
           <Link
             key={href}
             href={href}
             onClick={mobile ? () => setIsMobileOpen(false) : undefined}
             aria-current={active ? 'page' : undefined}
-            className={cn(styles.navLink, active && styles.navLinkActive)}
+            className={className}
           >
-            <span className={styles.navCode}>{code}</span>
-            <Icon aria-hidden="true" />
-            <span>{label}</span>
-            {active && <span className={styles.activeSignal} aria-hidden="true" />}
+            {content}
           </Link>
         );
       })}

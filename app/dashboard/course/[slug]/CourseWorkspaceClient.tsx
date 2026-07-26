@@ -113,7 +113,7 @@ export default function CourseWorkspaceClient({
   };
 
   const handleSidebarResizeEnd = (event: React.KeyboardEvent<HTMLDivElement> | React.PointerEvent<HTMLDivElement>) => {
-    if ('releasePointerCapture' in event.currentTarget && event.currentTarget.hasPointerCapture(event.pointerId)) {
+    if ('pointerId' in event && 'releasePointerCapture' in event.currentTarget && event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     setIsResizingSidebar(false);
@@ -172,8 +172,6 @@ export default function CourseWorkspaceClient({
       toast.error(error instanceof Error ? error.message : 'Completion could not be saved. Try again.');
     }
   };
-
-  const isCompleted = activeLesson ? completedIds.includes(activeLesson.id) : false;
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-slate-950 border-r border-slate-800">

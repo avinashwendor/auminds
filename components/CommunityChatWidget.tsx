@@ -1,9 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, MessageSquare, RefreshCw, Send, Users } from 'lucide-react';
+import { 
+  AlertCircle, MessageSquare, RefreshCw, Send, Users, 
+  Sparkles, Code2, ShieldCheck, CheckCircle
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
 interface ChatMessage {
@@ -12,7 +17,11 @@ interface ChatMessage {
   createdAt: string;
   user?: { id: string; name: string; username: string; role: string } | null;
 }
-interface CommunityChatWidgetProps { courseId?: string; currentUserId: string }
+
+interface CommunityChatWidgetProps {
+  courseId?: string;
+  currentUserId: string;
+}
 
 function messageTime(value: string) {
   const date = new Date(value);
@@ -31,25 +40,64 @@ export default function CommunityChatWidget({ courseId, currentUserId }: Communi
 
   useEffect(() => {
     let active = true;
+    let timeoutId: number | undefined;
+    let failureCount = 0;
+
+    const schedule = (delay: number) => {
+      if (!active) return;
+      if (timeoutId) window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(load, delay);
+    };
+
     const load = async () => {
-      if (document.hidden) { if (active) setLoading(false); return; }
+      if (!active) return;
+      if (document.hidden) {
+        setLoading(false);
+        schedule(30_000);
+        return;
+      }
+
       const requestId = ++requestIdRef.current;
       try {
         const response = await fetch(courseId ? `/api/community?courseId=${courseId}` : '/api/community');
-        if (!response.ok) throw new Error('Discussion could not be refreshed.');
         const data = await response.json();
-        if (active && requestId === requestIdRef.current) { setMessages(data.messages || []); setError(''); }
+        if (!response.ok) {
+          const retryAfter = Number(data.retryAfterMs) || Math.min(30_000 * 2 ** failureCount, 120_000);
+          failureCount += 1;
+          if (active && requestId === requestIdRef.current) {
+            setError(data.error || 'Discussion is temporarily unavailable.');
+            schedule(retryAfter);
+          }
+          return;
+        }
+
+        failureCount = 0;
+        if (active && requestId === requestIdRef.current) {
+          setMessages(data.messages || []);
+          setError('');
+          schedule(10_000);
+        }
       } catch (reason) {
-        if (active && requestId === requestIdRef.current) setError(reason instanceof Error ? reason.message : 'Discussion could not be refreshed.');
+        failureCount += 1;
+        if (active && requestId === requestIdRef.current) {
+          setError(reason instanceof Error ? reason.message : 'Discussion could not be refreshed.');
+          schedule(Math.min(15_000 * 2 ** failureCount, 120_000));
+        }
       } finally {
         if (active && requestId === requestIdRef.current) setLoading(false);
       }
     };
+
     load();
-    const interval = window.setInterval(load, 10000);
-    const onVisible = () => { if (!document.hidden) load(); };
+    const onVisible = () => {
+      if (!document.hidden) load();
+    };
     document.addEventListener('visibilitychange', onVisible);
-    return () => { active = false; window.clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); };
+    return () => {
+      active = false;
+      if (timeoutId) window.clearTimeout(timeoutId);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [courseId, refreshKey]);
 
   useEffect(() => {
@@ -82,82 +130,190 @@ export default function CommunityChatWidget({ courseId, currentUserId }: Communi
   };
 
   return (
-    <section className="grid min-h-[36rem] border border-border bg-card lg:h-[calc(100svh-13rem)] lg:max-h-[52rem] lg:grid-cols-[minmax(0,1fr)_17rem]" aria-labelledby="channel-title">
-      <div className="flex min-h-0 flex-col">
-        <header className="flex items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-6">
-          <div>
-            <div className="flex items-center gap-2"><Users className="size-4 text-primary" /><span className="board-label text-primary">Open channel / Live</span></div>
-            <h2 id="channel-title" className="mt-2 text-lg font-bold">Student lounge</h2>
+    <div className="minimal-card overflow-hidden grid lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-[#919EAB]/12 border border-[#919EAB]/20 shadow-2xl">
+      
+      {/* Main Chat Feed */}
+      <div className="lg:col-span-8 flex flex-col h-[calc(100vh-12rem)] min-h-[600px]">
+        
+        {/* Chat Header */}
+        <header className="p-6 border-b border-[#919EAB]/12 bg-[#1A2332]/50 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="size-12 rounded-2xl bg-[#00AB55]/15 text-[#00AB55] grid place-items-center shrink-0">
+              <Users className="size-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-3">
+                <h2 className="text-xl font-extrabold text-white">Student Lounge & Peer Channel</h2>
+                <Badge variant="outline" className="bg-[#00AB55]/15 text-[#00AB55] border-[#00AB55]/30 text-xs font-mono font-bold">
+                  LIVE
+                </Badge>
+              </div>
+              <p className="text-xs text-[#919EAB] mt-0.5">Ask questions, share code snippets, and help fellow learners.</p>
+            </div>
           </div>
-          <div className="text-right"><strong className="board-value block text-2xl">{messages.length}</strong><span className="board-label">Messages</span></div>
+
+          <div className="text-right font-mono text-xs text-[#919EAB] hidden sm:block">
+            <strong className="text-white font-extrabold block text-base">{messages.length}</strong> Messages
+          </div>
         </header>
 
+        {/* Error Alert */}
         {error && (
-          <div role="alert" className="flex items-center justify-between gap-4 border-b border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive sm:px-6">
-            <span className="flex items-center gap-2"><AlertCircle className="size-4 shrink-0" />{error}</span>
-            <Button type="button" variant="ghost" size="sm" onClick={() => { setLoading(true); setRefreshKey((value) => value + 1); }}><RefreshCw className="size-4" />Retry</Button>
+          <div className="p-4 bg-[#FF4842]/15 border-b border-[#FF4842]/30 text-xs font-bold text-[#FF4842] flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <AlertCircle className="size-4 shrink-0" /> {error}
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setLoading(true);
+                setRefreshKey((v) => v + 1);
+              }}
+              className="text-[#FF4842] hover:bg-[#FF4842]/20 text-xs h-8 font-bold"
+            >
+              <RefreshCw className="size-4 mr-1.5" /> Retry
+            </Button>
           </div>
         )}
 
-        <div className="min-h-[20rem] flex-1 overflow-y-auto" aria-live="polite" aria-busy={loading}>
+        {/* Messages Scroll Area */}
+        <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 bg-[#161C24]">
           {loading ? (
-            <div className="divide-y divide-border" aria-label="Loading discussion">
-              {[0, 1, 2].map((item) => <div key={item} className="flex gap-4 px-4 py-6 sm:px-6"><div className="size-9 animate-pulse bg-muted" /><div className="flex-1"><div className="h-3 w-28 animate-pulse bg-muted" /><div className="mt-3 h-4 max-w-xl animate-pulse bg-muted" /><div className="mt-2 h-4 max-w-md animate-pulse bg-muted" /></div></div>)}
+            <div className="space-y-6">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="flex items-start gap-4 animate-pulse">
+                  <div className="size-11 rounded-2xl bg-[#212B36]" />
+                  <div className="space-y-2 flex-1">
+                    <div className="h-5 w-40 bg-[#212B36] rounded" />
+                    <div className="h-14 w-full bg-[#212B36] rounded-2xl" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : messages.length === 0 ? (
-            <div className="grid h-full min-h-[20rem] place-items-center px-6 text-center">
-              <div><MessageSquare className="mx-auto mb-4 size-7 text-muted-foreground" /><h3 className="text-lg font-bold">Start a useful discussion</h3><p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">Share the problem, what you tried, and the result you expected. Specific context gets better answers.</p></div>
+            <div className="h-full grid place-items-center text-center p-12">
+              <div>
+                <MessageSquare className="size-12 text-[#637381] mx-auto mb-4" />
+                <h3 className="text-xl font-extrabold text-white">Start the Discussion</h3>
+                <p className="text-sm text-[#919EAB] mt-2 max-w-sm">
+                  Be the first to post a question or introduce yourself to the academy community.
+                </p>
+              </div>
             </div>
           ) : (
-            <div className="divide-y divide-border">
-              {messages.map((item) => {
-                const mine = item.user?.id === currentUserId;
-                return (
-                  <article key={item.id} className={cn('flex gap-4 px-4 py-5 sm:px-6', mine && 'bg-primary/[.035]')}>
-                    <div className={cn('grid size-9 shrink-0 place-items-center rounded-sm border bg-muted text-xs font-bold', mine ? 'border-primary/50 text-primary' : 'border-border text-foreground')}>
-                      {item.user?.name?.charAt(0).toUpperCase() || '?'}
+            messages.map((msg) => {
+              const isMine = msg.user?.id === currentUserId;
+              return (
+                <div
+                  key={msg.id}
+                  className={cn(
+                    'flex items-start gap-4 group',
+                    isMine && 'flex-row-reverse'
+                  )}
+                >
+                  <Avatar className="size-11 rounded-2xl border border-[#919EAB]/20 shrink-0 shadow-md">
+                    <AvatarFallback className={cn(
+                      'font-extrabold text-sm rounded-2xl',
+                      isMine ? 'bg-[#00AB55]/20 text-[#00AB55]' : 'bg-[#3366FF]/20 text-[#3366FF]'
+                    )}>
+                      {msg.user?.name?.charAt(0).toUpperCase() || '?'}
+                    </AvatarFallback>
+                  </Avatar>
+
+                  <div className={cn('max-w-[85%]', isMine && 'text-right')}>
+                    <div className={cn('flex items-center gap-2.5 text-xs font-mono text-[#919EAB] mb-1.5', isMine && 'justify-end')}>
+                      <span className="font-extrabold text-white text-sm">{isMine ? 'You' : msg.user?.name || 'Student'}</span>
+                      <span>· {messageTime(msg.createdAt)}</span>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><span className="text-sm font-bold">{mine ? 'You' : item.user?.name || 'Student'}</span><time className="font-mono text-[10px] text-muted-foreground" dateTime={item.createdAt}>{messageTime(item.createdAt)}</time></div>
-                      <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-foreground/90">{item.content}</p>
+
+                    <div className={cn(
+                      'p-5 rounded-3xl text-sm sm:text-base leading-relaxed text-white whitespace-pre-wrap break-words border shadow-md',
+                      isMine
+                        ? 'bg-[#00AB55]/15 border-[#00AB55]/35 rounded-tr-none text-right font-medium'
+                        : 'bg-[#212B36] border-[#919EAB]/20 rounded-tl-none font-normal'
+                    )}>
+                      {msg.content}
                     </div>
-                  </article>
-                );
-              })}
-              <div ref={endRef} />
-            </div>
+                  </div>
+                </div>
+              );
+            })
           )}
+          <div ref={endRef} />
         </div>
 
-        <footer className="border-t border-border bg-background p-3 sm:p-4">
-          <form onSubmit={send}>
+        {/* Message Input Footer */}
+        <footer className="p-6 border-t border-[#919EAB]/12 bg-[#1A2332]/50">
+          <form onSubmit={send} className="space-y-4">
             <Textarea
               value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.form?.requestSubmit(); }}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') e.currentTarget.form?.requestSubmit();
+              }}
               maxLength={1000}
               rows={3}
-              placeholder="Describe the question, what you tried, and where you are blocked…"
-              aria-label="Community message"
-              className="min-h-24 resize-none rounded-sm"
+              placeholder="Ask a technical question, share code context, or offer help…"
+              className="bg-[#212B36] border-[#919EAB]/20 text-white placeholder:text-[#637381] rounded-2xl text-sm sm:text-base p-4 resize-none"
             />
-            <div className="mt-3 flex items-center justify-between gap-3">
-              <span className="font-mono text-[10px] text-muted-foreground">⌘ Enter to send · {message.length}/1000</span>
-              <Button type="submit" disabled={sending || !message.trim()}><Send className="size-4" />{sending ? 'Sending…' : 'Send message'}</Button>
+            <div className="flex items-center justify-between text-xs font-mono text-[#919EAB]">
+              <span className="font-bold">Press ⌘ + Enter to send · {message.length}/1000</span>
+              <Button
+                type="submit"
+                disabled={sending || !message.trim()}
+                className="bg-[#00AB55] hover:bg-[#007B55] text-white font-extrabold rounded-2xl text-sm px-6 py-3 shadow-lg shadow-[#00AB55]/20"
+              >
+                <Send className="size-4 mr-2" /> {sending ? 'Sending…' : 'Send Message'}
+              </Button>
             </div>
           </form>
         </footer>
+
       </div>
 
-      <aside className="border-t border-border bg-background p-5 lg:border-l lg:border-t-0" aria-label="Community posting guide">
-        <p className="board-label text-primary">Before you post</p>
-        <ol className="mt-5 space-y-5">
-          <li className="grid grid-cols-[1.75rem_1fr] gap-3"><span className="font-mono text-xs text-primary">01</span><div><strong className="text-sm">Name the problem</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">What are you building or trying to understand?</p></div></li>
-          <li className="grid grid-cols-[1.75rem_1fr] gap-3"><span className="font-mono text-xs text-primary">02</span><div><strong className="text-sm">Show your attempt</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Include the approach, result, or error that brought you here.</p></div></li>
-          <li className="grid grid-cols-[1.75rem_1fr] gap-3"><span className="font-mono text-xs text-primary">03</span><div><strong className="text-sm">Close the loop</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Share what worked so the next learner can use it.</p></div></li>
+      {/* Community Posting Rules Sidebar */}
+      <aside className="lg:col-span-4 p-8 bg-[#161C24] space-y-8">
+        <div>
+          <Badge variant="outline" className="bg-[#00AB55]/15 text-[#00AB55] border-[#00AB55]/30 font-mono text-xs mb-3 px-3 py-1 font-bold">
+            <Code2 className="size-4 mr-1.5" /> GUIDELINES
+          </Badge>
+          <h3 className="text-xl font-extrabold text-white">Community Principles</h3>
+          <p className="text-xs text-[#919EAB] mt-1">High quality engineering discussions get faster answers.</p>
+        </div>
+
+        <ol className="space-y-5 text-sm">
+          <li className="p-4 rounded-2xl bg-[#212B36] border border-[#919EAB]/12 flex items-start gap-4">
+            <span className="font-mono font-extrabold text-[#00AB55] text-base">01</span>
+            <div>
+              <strong className="text-white block font-extrabold">Be Specific & Concise</strong>
+              <span className="text-[#919EAB] mt-1 block leading-relaxed text-xs">Describe the exact error, file, or component behavior.</span>
+            </div>
+          </li>
+
+          <li className="p-4 rounded-2xl bg-[#212B36] border border-[#919EAB]/12 flex items-start gap-4">
+            <span className="font-mono font-extrabold text-[#3366FF] text-base">02</span>
+            <div>
+              <strong className="text-white block font-extrabold">Show What You Tried</strong>
+              <span className="text-[#919EAB] mt-1 block leading-relaxed text-xs">Paste your code snippet or terminal output.</span>
+            </div>
+          </li>
+
+          <li className="p-4 rounded-2xl bg-[#212B36] border border-[#919EAB]/12 flex items-start gap-4">
+            <span className="font-mono font-extrabold text-[#FFC107] text-base">03</span>
+            <div>
+              <strong className="text-white block font-extrabold">Help Fellow Learners</strong>
+              <span className="text-[#919EAB] mt-1 block leading-relaxed text-xs">If you find the fix, post the solution to help others.</span>
+            </div>
+          </li>
         </ol>
-        <div className="mt-8 border-t border-border pt-5"><p className="board-label">Channel refresh</p><p className="mt-2 text-xs leading-5 text-muted-foreground">New messages are checked every 10 seconds while this tab is active.</p></div>
+
+        <div className="p-5 rounded-2xl bg-[#00AB55]/10 border border-[#00AB55]/20 text-xs text-[#00AB55] font-mono font-bold flex items-center gap-3">
+          <ShieldCheck className="size-5 shrink-0" />
+          <span>Auto-refreshes every 10s while tab is open.</span>
+        </div>
       </aside>
-    </section>
+
+    </div>
   );
 }

@@ -8,5 +8,12 @@ export default async function AdminJobsPage() {
   const session = await getCurrentUser();
   if (!session || session.role !== 'admin') redirect('/login');
   const jobs = await getAllJobPostings();
-  return <div className="min-h-screen bg-background text-foreground"><Navbar user={session} /><main className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8"><JobManagementClient initialJobs={jobs} /></main></div>;
+  return (
+    <div className="min-h-screen bg-background text-foreground flex">
+      <Navbar user={session} />
+      <main className="min-h-screen p-6 md:p-10 w-full">
+        <JobManagementClient initialJobs={jobs} />
+      </main>
+    </div>
+  );
 }

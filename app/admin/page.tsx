@@ -3,33 +3,141 @@ import Navbar from '@/components/Navbar';
 import { getCurrentUser } from '@/lib/auth';
 import { getAllUsers, getAllCourses, getAllPendingSubmissions, getAllJobPostings } from '@/lib/db/queries';
 import { redirect } from 'next/navigation';
-import { ArrowRight, BookOpen, Briefcase, CheckSquare, HelpCircle, Users } from 'lucide-react';
+import { 
+  ArrowRight, BookOpen, Briefcase, CheckSquare, HelpCircle, Users, 
+  ShieldAlert, Sparkles, Activity, Layers, Terminal
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 const actions = [
-  { href: '/admin/courses', label: 'Curriculum network', detail: 'Create courses, modules, and lessons', icon: BookOpen },
-  { href: '/admin/users', label: 'People and access', detail: 'Create accounts and assign courses', icon: Users },
-  { href: '/admin/quizzes', label: 'Assessment builder', detail: 'Attach quizzes to lesson routes', icon: HelpCircle },
-  { href: '/admin/assignments', label: 'Review queue', detail: 'Grade submissions and issue feedback', icon: CheckSquare },
-  { href: '/admin/jobs', label: 'Opportunity board', detail: 'Publish and manage engineering roles', icon: Briefcase },
+  { href: '/admin/courses', label: 'Curriculum Network', detail: 'Create & manage courses, modules, and video/code lessons', icon: BookOpen, color: '#00AB55' },
+  { href: '/admin/users', label: 'People & Access', detail: 'Manage student accounts and course enrollments', icon: Users, color: '#3366FF' },
+  { href: '/admin/quizzes', label: 'Assessment Builder', detail: 'Build quizzes with multiple choice options & explanations', icon: HelpCircle, color: '#FFC107' },
+  { href: '/admin/assignments', label: 'Submission Queue', detail: 'Grade student GitHub submissions and issue feedback', icon: CheckSquare, color: '#826AF9' },
+  { href: '/admin/jobs', label: 'Opportunity Board', detail: 'Publish & curate engineering jobs for students', icon: Briefcase, color: '#FF4842' },
 ];
 
 export default async function AdminDashboardPage() {
   const user = await getCurrentUser();
   if (!user || user.role !== 'admin') redirect('/login');
-  const [users, courses, submissions, jobs] = await Promise.all([getAllUsers(), getAllCourses(), getAllPendingSubmissions(), getAllJobPostings()]);
+  
+  const [users, courses, submissions, jobs] = await Promise.all([
+    getAllUsers(), 
+    getAllCourses(), 
+    getAllPendingSubmissions(), 
+    getAllJobPostings()
+  ]);
+
   const metrics = [
-    { label: 'Students', value: users.filter((item: any) => item.role === 'student').length, status: 'ACTIVE' },
-    { label: 'Courses', value: courses.length, status: 'PUBLISHED' },
-    { label: 'Reviews', value: submissions.length, status: submissions.length ? 'ACTION' : 'CLEAR' },
-    { label: 'Jobs', value: jobs.length, status: 'LIVE' },
+    { label: 'Active Students', value: users.filter((item: any) => item.role === 'student').length, icon: Users, color: '#00AB55' },
+    { label: 'Published Courses', value: courses.length, icon: BookOpen, color: '#3366FF' },
+    { label: 'Pending Reviews', value: submissions.length, icon: CheckSquare, color: '#FFC107', actionRequired: submissions.length > 0 },
+    { label: 'Live Job Openings', value: jobs.length, icon: Briefcase, color: '#826AF9' },
   ];
-  return <div className="min-h-screen bg-background text-foreground"><Navbar user={user} />
-    <main className="mx-auto max-w-7xl p-5 sm:p-8 md:py-10">
-      <header className="border-b border-border pb-10"><div className="mb-5 flex items-center gap-3"><span className="signal-dot" /><span className="board-label">Academy operations · all systems available</span></div><h1 className="board-value text-4xl leading-none sm:text-6xl">OPERATIONS CONTROL</h1><p className="mt-5 max-w-2xl text-muted-foreground">Monitor the learning network, publish curriculum, manage access, and clear work awaiting review.</p></header>
-      <section className="grid border-b border-border sm:grid-cols-2 lg:grid-cols-4">{metrics.map((metric, index) => <div key={metric.label} className="border-border p-5 sm:border-r last:border-r-0"><div className="flex items-center justify-between"><span className="board-label">{metric.label}</span><span className={metric.status === 'ACTION' ? 'board-label text-primary' : 'board-label'}>{metric.status}</span></div><p className="board-value mt-6 text-5xl">{metric.value}</p><p className="mt-2 font-mono text-[10px] text-muted-foreground">AUM-{String(index + 1).padStart(2, '0')}</p></div>)}</section>
-      <section className="pt-10"><div className="mb-5"><p className="board-label">Management destinations</p><h2 className="board-value mt-2 text-3xl">CHOOSE A WORKSPACE</h2></div><div className="border-t border-border">{actions.map(({ href, label, detail, icon: Icon }, index) => <Link key={href} href={href} className="group grid min-h-24 grid-cols-[3rem_1fr_auto] items-center gap-4 border-b border-border py-4 transition-colors hover:bg-card sm:grid-cols-[5rem_1fr_13rem_auto]"><span className="font-mono text-xs font-bold text-primary">{String(index + 1).padStart(2, '0')}</span><div><h3 className="board-value text-xl group-hover:text-primary sm:text-2xl">{label}</h3><p className="mt-1 text-sm text-muted-foreground sm:hidden">{detail}</p></div><p className="hidden text-sm text-muted-foreground sm:block">{detail}</p><Icon className="size-5 text-muted-foreground group-hover:hidden" /><ArrowRight className="hidden size-5 text-primary group-hover:block" /></Link>)}</div></section>
-      {submissions.length > 0 && <div className="mt-10 flex flex-col justify-between gap-4 border border-primary/40 bg-primary/5 p-5 sm:flex-row sm:items-center"><div><p className="board-label text-primary">Action required</p><p className="mt-2 font-bold">{submissions.length} submission{submissions.length === 1 ? '' : 's'} waiting for instructor review.</p></div><Button asChild><Link href="/admin/assignments">Open review queue <ArrowRight className="size-4" /></Link></Button></div>}
-    </main>
-  </div>;
+
+  return (
+    <div className="min-h-screen bg-[#0B0F17] text-white flex">
+      <Navbar user={user} />
+      
+      <main className="min-h-screen p-6 md:p-10 w-full space-y-8">
+        
+        {/* Header */}
+        <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 border-b border-[#919EAB]/12 pb-6">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Badge variant="outline" className="bg-[#00AB55]/10 text-[#00AB55] border-[#00AB55]/30 font-mono text-xs">
+                <Terminal className="size-3 mr-1" /> OPERATIONS CONTROL CENTER
+              </Badge>
+              <span className="text-xs font-mono text-[#919EAB]">SYSTEM HEALTH ONLINE</span>
+            </div>
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">ACADEMY MANAGEMENT</h1>
+            <p className="mt-2 text-xs text-[#919EAB] max-w-xl leading-relaxed">
+              Monitor academy activity, publish curriculum routes, manage user enrollments, and clear project submissions.
+            </p>
+          </div>
+        </header>
+
+        {/* Action Required Banner */}
+        {submissions.length > 0 && (
+          <div className="minimal-card p-6 border-[#FFC107]/40 bg-gradient-to-r from-[#FFC107]/10 via-[#161C24] to-[#161C24] flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
+            <div className="flex items-center gap-3">
+              <div className="size-12 rounded-xl bg-[#FFC107]/20 border border-[#FFC107]/40 grid place-items-center text-[#FFC107] shrink-0">
+                <ShieldAlert className="size-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Review Queue Alert</h3>
+                <p className="text-xs text-[#919EAB] mt-0.5">
+                  <strong className="text-[#FFC107]">{submissions.length} student submissions</strong> are awaiting your review and grading.
+                </p>
+              </div>
+            </div>
+
+            <Button asChild className="bg-[#FFC107] hover:bg-[#FFC107]/80 text-[#161C24] font-bold rounded-xl shrink-0">
+              <Link href="/admin/assignments">
+                Open Review Queue <ArrowRight className="size-4 ml-1.5" />
+              </Link>
+            </Button>
+          </div>
+        )}
+
+        {/* 4 Summary Stat Cards */}
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {metrics.map((m) => {
+            const Icon = m.icon;
+            return (
+              <div key={m.label} className="minimal-card p-5 flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="board-label">{m.label}</span>
+                  <div className="size-10 rounded-xl grid place-items-center" style={{ backgroundColor: `${m.color}20`, color: m.color }}>
+                    <Icon className="size-5" />
+                  </div>
+                </div>
+                <strong className="text-3xl font-extrabold text-white mt-4 block" style={{ color: m.actionRequired ? '#FFC107' : 'white' }}>
+                  {m.value}
+                </strong>
+              </div>
+            );
+          })}
+        </section>
+
+        {/* Destination Workspaces Grid */}
+        <section className="space-y-4">
+          <span className="board-label text-[#00AB55]">Management Workspaces</span>
+          <h2 className="text-2xl font-extrabold text-white tracking-tight">CONTROL MODULES</h2>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {actions.map((act) => {
+              const Icon = act.icon;
+              return (
+                <Link 
+                  key={act.href} 
+                  href={act.href}
+                  className="minimal-card p-6 flex flex-col justify-between group hover:border-[#00AB55]/50 transition-all"
+                >
+                  <div>
+                    <div className="size-12 rounded-xl border grid place-items-center mb-4 transition-transform group-hover:scale-105" style={{ backgroundColor: `${act.color}15`, borderColor: `${act.color}30`, color: act.color }}>
+                      <Icon className="size-6" />
+                    </div>
+                    <h3 className="text-lg font-extrabold text-white group-hover:text-[#00AB55] transition-colors">
+                      {act.label}
+                    </h3>
+                    <p className="text-xs text-[#919EAB] mt-2 leading-relaxed">
+                      {act.detail}
+                    </p>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-[#919EAB]/12 flex items-center justify-between text-xs font-bold text-[#00AB55]">
+                    <span>Access Workspace</span>
+                    <ArrowRight className="size-4 transform group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+
+      </main>
+    </div>
+  );
 }

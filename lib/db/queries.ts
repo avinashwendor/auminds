@@ -1,4 +1,4 @@
-import { db } from './index';
+import { db, withDatabaseFallback } from './index';
 import { 
   users, courses, courseEnrollments, modules, lessons, 
   lessonCompletions, quizzes, quizQuestions, quizAttempts, 
@@ -6,25 +6,59 @@ import {
 } from './schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
 
+const allowMockUsers = process.env.NODE_ENV !== 'production' && process.env.ENABLE_MOCK_USERS !== 'false';
+
+const MOCK_USERS: Record<string, any> = {
+  admin: {
+    id: 'user-admin-1',
+    username: 'admin',
+    passwordHash: '$2a$10$3x28NbGYPqhapSZnMehDg.sea8nwjwxGdbVEEWXF2OME3JVfC09yO', // admin123
+    name: 'Admin Director',
+    role: 'admin',
+    points: 500,
+    avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=admin',
+    createdAt: new Date(),
+  },
+  alex_coder: {
+    id: 'user-student-1',
+    username: 'alex_coder',
+    passwordHash: '$2a$10$6Mgh3ZBTusuzYjpb06LCk.nb6PSzviWkd3.yDIL9noWeTKUKpYFn6', // student123
+    name: 'Alex Rivera',
+    role: 'student',
+    points: 380,
+    avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=alex',
+    createdAt: new Date(),
+  },
+};
+
 // User Queries using Drizzle QueryBuilder
 export async function getUserByUsername(username: string) {
-  try {
-    const result = await db.select().from(users).where(eq(users.username, username.toLowerCase())).limit(1);
-    if (result.length > 0) return result[0];
-  } catch (err) {
-    console.error('[Queries] Error in getUserByUsername:', err);
-  }
-  return null;
+  const normalizedUsername = username.toLowerCase();
+  const fallbackUser = allowMockUsers ? MOCK_USERS[normalizedUsername] || null : null;
+
+  return withDatabaseFallback(
+    'getUserByUsername',
+    async () => {
+      const result = await db.select().from(users).where(eq(users.username, normalizedUsername)).limit(1);
+      return result[0] || fallbackUser;
+    },
+    fallbackUser,
+  );
 }
 
 export async function getUserById(id: string) {
-  try {
-    const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
-    if (result.length > 0) return result[0];
-  } catch (err) {
-    console.error('[Queries] Error in getUserById:', err);
-  }
-  return null;
+  const fallbackUser = allowMockUsers
+    ? Object.values(MOCK_USERS).find((user) => user.id === id) || null
+    : null;
+
+  return withDatabaseFallback(
+    'getUserById',
+    async () => {
+      const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+      return result[0] || fallbackUser;
+    },
+    fallbackUser,
+  );
 }
 
 export async function getAllUsers() {
@@ -96,37 +130,38 @@ export async function isUserEnrolledInCourse(userId: string, courseId: string) {
 }
 
 export async function getUserCourseTrees(userId: string) {
-  try {
-    const rows = await db
-      .select({ course: courses, module: modules, lesson: lessons })
-      .from(courseEnrollments)
-      .innerJoin(courses, eq(courseEnrollments.courseId, courses.id))
-      .leftJoin(modules, eq(modules.courseId, courses.id))
-      .leftJoin(lessons, eq(lessons.moduleId, modules.id))
-      .where(eq(courseEnrollments.userId, userId))
-      .orderBy(modules.orderIndex, lessons.orderIndex);
+  return withDatabaseFallback(
+    'getUserCourseTrees',
+    async () => {
+      const rows = await db
+        .select({ course: courses, module: modules, lesson: lessons })
+        .from(courseEnrollments)
+        .innerJoin(courses, eq(courseEnrollments.courseId, courses.id))
+        .leftJoin(modules, eq(modules.courseId, courses.id))
+        .leftJoin(lessons, eq(lessons.moduleId, modules.id))
+        .where(eq(courseEnrollments.userId, userId))
+        .orderBy(modules.orderIndex, lessons.orderIndex);
 
-    const courseMap = new Map<string, any>();
-    const moduleMaps = new Map<string, Map<string, any>>();
-    for (const row of rows) {
-      if (!courseMap.has(row.course.id)) {
-        courseMap.set(row.course.id, { ...row.course, modules: [] });
-        moduleMaps.set(row.course.id, new Map());
+      const courseMap = new Map<string, any>();
+      const moduleMaps = new Map<string, Map<string, any>>();
+      for (const row of rows) {
+        if (!courseMap.has(row.course.id)) {
+          courseMap.set(row.course.id, { ...row.course, modules: [] });
+          moduleMaps.set(row.course.id, new Map());
+        }
+        if (!row.module) continue;
+        const modulesForCourse = moduleMaps.get(row.course.id)!;
+        if (!modulesForCourse.has(row.module.id)) {
+          const moduleWithLessons = { ...row.module, lessons: [] as any[] };
+          modulesForCourse.set(row.module.id, moduleWithLessons);
+          courseMap.get(row.course.id).modules.push(moduleWithLessons);
+        }
+        if (row.lesson) modulesForCourse.get(row.module.id).lessons.push(row.lesson);
       }
-      if (!row.module) continue;
-      const modulesForCourse = moduleMaps.get(row.course.id)!;
-      if (!modulesForCourse.has(row.module.id)) {
-        const moduleWithLessons = { ...row.module, lessons: [] as any[] };
-        modulesForCourse.set(row.module.id, moduleWithLessons);
-        courseMap.get(row.course.id).modules.push(moduleWithLessons);
-      }
-      if (row.lesson) modulesForCourse.get(row.module.id).lessons.push(row.lesson);
-    }
-    return Array.from(courseMap.values());
-  } catch (err) {
-    console.error('[Queries] Error in getUserCourseTrees:', err);
-    return [];
-  }
+      return Array.from(courseMap.values());
+    },
+    [],
+  );
 }
 
 // Course Queries
@@ -209,13 +244,14 @@ export async function markLessonCompleted(userId: string, lessonId: string) {
 }
 
 export async function getUserCompletedLessonIds(userId: string) {
-  try {
-    const completions = await db.select().from(lessonCompletions).where(eq(lessonCompletions.userId, userId));
-    return completions.map(c => c.lessonId);
-  } catch (err) {
-    console.error('[Queries] Error in getUserCompletedLessonIds:', err);
-    return [];
-  }
+  return withDatabaseFallback(
+    'getUserCompletedLessonIds',
+    async () => {
+      const completions = await db.select().from(lessonCompletions).where(eq(lessonCompletions.userId, userId));
+      return completions.map((completion) => completion.lessonId);
+    },
+    [],
+  );
 }
 
 // Quizzes
@@ -385,20 +421,21 @@ export async function createJobPosting(jobData: { title: string; company: string
 
 // Community Lounge Chat
 export async function getCommunityMessages(courseId?: string) {
-  try {
-    const query = courseId ? eq(communityMessages.courseId, courseId) : undefined;
-    const rows = await db
-      .select({ message: communityMessages, user: users })
-      .from(communityMessages)
-      .leftJoin(users, eq(communityMessages.userId, users.id))
-      .where(query)
-      .orderBy(communityMessages.createdAt)
-      .limit(100);
-    return rows.map(({ message, user }) => ({ ...message, user }));
-  } catch (err) {
-    console.error('[Queries] Error in getCommunityMessages:', err);
-    return [];
-  }
+  return withDatabaseFallback(
+    'getCommunityMessages',
+    async () => {
+      const query = courseId ? eq(communityMessages.courseId, courseId) : undefined;
+      const rows = await db
+        .select({ message: communityMessages, user: users })
+        .from(communityMessages)
+        .leftJoin(users, eq(communityMessages.userId, users.id))
+        .where(query)
+        .orderBy(communityMessages.createdAt)
+        .limit(100);
+      return rows.map(({ message, user }) => ({ ...message, user }));
+    },
+    [],
+  );
 }
 
 export async function sendCommunityMessage(userId: string, content: string, courseId?: string) {

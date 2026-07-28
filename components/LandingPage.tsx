@@ -167,11 +167,18 @@ export default function LandingPage({ user, destination, primaryAction }: Landin
         </nav>
 
         <div className={styles.headerActions}>
-          {!user && <Link className={styles.signInLink} href="/login">Sign in</Link>}
-          <Link className={styles.headerCta} href={destination}>
-            {user ? 'Open workspace' : 'Enter academy'}
-            <ArrowRight aria-hidden="true" />
-          </Link>
+          {!user ? (
+            <>
+              <Link className={styles.signInLink} href="/login">Sign in</Link>
+              <Link className={styles.headerCta} href="/signup">
+                Request Access <ArrowRight aria-hidden="true" />
+              </Link>
+            </>
+          ) : (
+            <Link className={styles.headerCta} href={destination}>
+              Open workspace <ArrowRight aria-hidden="true" />
+            </Link>
+          )}
         </div>
 
         <details className={styles.mobileMenu}>
@@ -180,7 +187,14 @@ export default function LandingPage({ user, destination, primaryAction }: Landin
             <a href="#system">How it works</a>
             <a href="#platform">Platform</a>
             <a href="#outcomes">Outcomes</a>
-            <Link href={destination}>{ctaLabel}<ArrowRight aria-hidden="true" /></Link>
+            {!user ? (
+              <>
+                <Link href="/signup">Request Access <ArrowRight aria-hidden="true" /></Link>
+                <Link href="/login">Sign In</Link>
+              </>
+            ) : (
+              <Link href={destination}>{ctaLabel}<ArrowRight aria-hidden="true" /></Link>
+            )}
           </nav>
         </details>
       </header>
@@ -192,12 +206,25 @@ export default function LandingPage({ user, destination, primaryAction }: Landin
             <h1>Learn to ship software that <em>holds up.</em></h1>
             <p className={styles.heroLead}>A rigorous coding academy where clear instruction, a real browser IDE, reviewed assignments, and visible progress turn learning into engineering proof.</p>
             <div className={styles.heroActions}>
-              <Link className={styles.primaryCta} href={destination}>
-                {ctaLabel}<ArrowRight aria-hidden="true" />
-              </Link>
-              <a className={styles.secondaryCta} href="#system">
-                See the learning system<span aria-hidden="true">↓</span>
-              </a>
+              {!user ? (
+                <>
+                  <Link className={styles.primaryCta} href="/signup">
+                    Request Access <ArrowRight aria-hidden="true" />
+                  </Link>
+                  <Link className={styles.secondaryCta} href="/login">
+                    Sign in
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link className={styles.primaryCta} href={destination}>
+                    {primaryAction}<ArrowRight aria-hidden="true" />
+                  </Link>
+                  <a className={styles.secondaryCta} href="#system">
+                    See the learning system<span aria-hidden="true">↓</span>
+                  </a>
+                </>
+              )}
             </div>
             <p className={styles.ctaNote}>One workspace. Lessons, code, feedback, and momentum.</p>
           </div>
@@ -320,7 +347,9 @@ export default function LandingPage({ user, destination, primaryAction }: Landin
           <h2>Stop collecting tutorials.<br /><em>Start building proof.</em></h2>
           <div>
             <p>Your next lesson, coding workspace, review, and milestone are waiting in one focused academy.</p>
-            <Link className={styles.finalButton} href={destination}>{ctaLabel}<ArrowRight aria-hidden="true" /></Link>
+            <Link className={styles.finalButton} href={user ? destination : "/signup"}>
+              {user ? primaryAction : "Request Access"}<ArrowRight aria-hidden="true" />
+            </Link>
           </div>
         </div>
       </section>
@@ -331,6 +360,7 @@ export default function LandingPage({ user, destination, primaryAction }: Landin
         <nav aria-label="Footer navigation">
           <a href="#system">System</a>
           <a href="#platform">Platform</a>
+          <Link href="/signup">Request Access</Link>
           <Link href="/login">Portal</Link>
         </nav>
         <span>© {new Date().getFullYear()} AUMINDS</span>

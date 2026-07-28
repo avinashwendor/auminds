@@ -33,6 +33,7 @@ const UNAVAILABLE_RETRY_MS = 30_000;
 let status: DatabaseStatus = 'unknown';
 let lastChecked = 0;
 let availabilityProbe: Promise<boolean> | null = null;
+let schemaSyncAttempted = false;
 
 function errorCode(error: unknown): string | undefined {
   if (!error || typeof error !== 'object') return undefined;
@@ -116,6 +117,13 @@ export async function withDatabaseFallback<T>(
     const code = errorCode(error);
     if (code === 'ECONNREFUSED' || code === 'ETIMEDOUT' || code === 'ENOTFOUND' || code === 'ECONNRESET') {
       setStatus('unavailable', error);
+    } else if (code === '42703') {
+      // Column does not exist on target PostgreSQL instance (e.g. Railway DB missing newly added schema columns)
+      console.warn(`[Database] Missing column detected during '${operation}' (${code}). Triggering automatic schema sync...`);
+      if (!schemaSyncAttempted) {
+        schemaSyncAttempted = true;
+        import('../../scripts/init-db').then(({ ensureSchema }) => ensureSchema()).catch(() => {});
+      }
     } else {
       console.error(`[Database] ${operation} failed${code ? ` (${code})` : ''}.`);
     }

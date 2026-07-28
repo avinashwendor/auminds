@@ -4,7 +4,8 @@ import {
   lessonCompletions, quizzes, quizQuestions, quizAttempts, 
   assignments, assignmentSubmissions, jobPostings, communityMessages 
 } from './schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import type { AccountStatus } from './schema';
+import { eq, and, desc, asc, inArray, sql } from 'drizzle-orm';
 
 const allowMockUsers = process.env.NODE_ENV !== 'production' && process.env.ENABLE_MOCK_USERS !== 'false';
 
@@ -12,9 +13,15 @@ const MOCK_USERS: Record<string, any> = {
   admin: {
     id: 'user-admin-1',
     username: 'admin',
+    email: 'admin@auminds.academy',
     passwordHash: '$2a$10$3x28NbGYPqhapSZnMehDg.sea8nwjwxGdbVEEWXF2OME3JVfC09yO', // admin123
     name: 'Admin Director',
     role: 'admin',
+    status: 'approved',
+    statusNote: null,
+    signupGoal: null,
+    reviewedAt: null,
+    reviewedBy: null,
     points: 500,
     avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=admin',
     createdAt: new Date(),
@@ -22,9 +29,15 @@ const MOCK_USERS: Record<string, any> = {
   alex_coder: {
     id: 'user-student-1',
     username: 'alex_coder',
+    email: 'alex@auminds.academy',
     passwordHash: '$2a$10$6Mgh3ZBTusuzYjpb06LCk.nb6PSzviWkd3.yDIL9noWeTKUKpYFn6', // student123
     name: 'Alex Rivera',
     role: 'student',
+    status: 'approved',
+    statusNote: null,
+    signupGoal: null,
+    reviewedAt: null,
+    reviewedBy: null,
     points: 380,
     avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=alex',
     createdAt: new Date(),
@@ -61,6 +74,19 @@ export async function getUserById(id: string) {
   );
 }
 
+export async function getUserByEmail(email: string) {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return null;
+  return withDatabaseFallback(
+    'getUserByEmail',
+    async () => {
+      const result = await db.select().from(users).where(eq(users.email, normalized)).limit(1);
+      return result[0] || null;
+    },
+    null,
+  );
+}
+
 export async function getAllUsers() {
   try {
     return await db.select().from(users).orderBy(desc(users.createdAt));
@@ -70,35 +96,223 @@ export async function getAllUsers() {
   }
 }
 
-export async function createUser(userData: { username: string; passwordHash: string; name: string; role: 'admin' | 'student'; assignedCourseIds?: string[] }) {
+export type AdminUserRecord = {
+  id: string;
+  username: string;
+  email: string | null;
+  name: string;
+  role: 'admin' | 'student';
+  status: AccountStatus;
+  statusNote: string | null;
+  signupGoal: string | null;
+  reviewedAt: Date | null;
+  reviewedBy: string | null;
+  points: number;
+  avatarUrl: string | null;
+  createdAt: Date;
+  courseIds: string[];
+  completedLessons: number;
+};
+
+/**
+ * Single round-trip directory used by the admin console: every account plus the
+ * courses assigned to it and a lightweight activity signal.
+ */
+export async function getAdminUserDirectory(): Promise<AdminUserRecord[]> {
+  return withDatabaseFallback(
+    'getAdminUserDirectory',
+    async () => {
+      const [accounts, enrollments, completionCounts] = await Promise.all([
+        db.select().from(users).orderBy(desc(users.createdAt)),
+        db.select({ userId: courseEnrollments.userId, courseId: courseEnrollments.courseId }).from(courseEnrollments),
+        db
+          .select({ userId: lessonCompletions.userId, total: sql<number>`count(*)::int` })
+          .from(lessonCompletions)
+          .groupBy(lessonCompletions.userId),
+      ]);
+
+      const courseMap = new Map<string, string[]>();
+      for (const row of enrollments) {
+        const list = courseMap.get(row.userId);
+        if (list) list.push(row.courseId);
+        else courseMap.set(row.userId, [row.courseId]);
+      }
+      const completionMap = new Map(completionCounts.map((row) => [row.userId, Number(row.total) || 0]));
+
+      return accounts.map((account) => ({
+        ...account,
+        courseIds: courseMap.get(account.id) || [],
+        completedLessons: completionMap.get(account.id) || 0,
+      })) as AdminUserRecord[];
+    },
+    [],
+  );
+}
+
+export async function getPendingApprovalCount() {
+  return withDatabaseFallback(
+    'getPendingApprovalCount',
+    async () => {
+      const rows = await db
+        .select({ total: sql<number>`count(*)::int` })
+        .from(users)
+        .where(eq(users.status, 'pending'));
+      return Number(rows[0]?.total) || 0;
+    },
+    0,
+  );
+}
+
+export async function createUser(userData: {
+  username: string;
+  passwordHash: string;
+  name: string;
+  role: 'admin' | 'student';
+  email?: string | null;
+  status?: AccountStatus;
+  signupGoal?: string | null;
+  assignedCourseIds?: string[];
+  reviewedBy?: string | null;
+}) {
+  const username = userData.username.toLowerCase();
   const newUser = {
-    id: `user-${Date.now()}`,
-    username: userData.username.toLowerCase(),
+    id: `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    username,
+    email: userData.email ? userData.email.trim().toLowerCase() : null,
     passwordHash: userData.passwordHash,
     name: userData.name,
     role: userData.role,
+    status: userData.status || 'approved',
+    statusNote: null,
+    signupGoal: userData.signupGoal || null,
+    reviewedAt: userData.status === 'pending' ? null : new Date(),
+    reviewedBy: userData.status === 'pending' ? null : userData.reviewedBy || null,
     points: 0,
-    avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${userData.username}`,
+    avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(username)}`,
     createdAt: new Date(),
   };
 
   const inserted = await db.insert(users).values(newUser).returning();
   const userObj = inserted[0] || newUser;
 
-  if (userData.assignedCourseIds && userData.assignedCourseIds.length > 0) {
-    for (const courseId of userData.assignedCourseIds) {
-      await assignCourseToUser(userObj.id, courseId);
-    }
+  if (userData.assignedCourseIds?.length) {
+    await setUserEnrollments(userObj.id, userData.assignedCourseIds, userData.reviewedBy || null);
   }
   return userObj;
 }
 
-export async function assignCourseToUser(userId: string, courseId: string) {
+export async function updateUserProfile(
+  userId: string,
+  patch: { name?: string; email?: string | null; role?: 'admin' | 'student'; passwordHash?: string },
+) {
+  const values: Record<string, unknown> = {};
+  if (patch.name !== undefined) values.name = patch.name;
+  if (patch.email !== undefined) values.email = patch.email ? patch.email.trim().toLowerCase() : null;
+  if (patch.role !== undefined) values.role = patch.role;
+  if (patch.passwordHash !== undefined) values.passwordHash = patch.passwordHash;
+  if (Object.keys(values).length === 0) return null;
+
+  const updated = await db.update(users).set(values).where(eq(users.id, userId)).returning();
+  return updated[0] || null;
+}
+
+export async function setUserStatus(
+  userId: string,
+  status: AccountStatus,
+  reviewerId: string,
+  note?: string | null,
+) {
+  const updated = await db
+    .update(users)
+    .set({ status, statusNote: note ?? null, reviewedAt: new Date(), reviewedBy: reviewerId })
+    .where(eq(users.id, userId))
+    .returning();
+  return updated[0] || null;
+}
+
+export async function setUsersStatus(
+  userIds: string[],
+  status: AccountStatus,
+  reviewerId: string,
+  note?: string | null,
+) {
+  if (!userIds.length) return [];
+  return db
+    .update(users)
+    .set({ status, statusNote: note ?? null, reviewedAt: new Date(), reviewedBy: reviewerId })
+    .where(inArray(users.id, userIds))
+    .returning();
+}
+
+export async function deleteUser(userId: string) {
+  await db.delete(users).where(eq(users.id, userId));
+}
+
+export async function countAdmins() {
+  const rows = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(users)
+    .where(eq(users.role, 'admin'));
+  return Number(rows[0]?.total) || 0;
+}
+
+export async function assignCourseToUser(userId: string, courseId: string, assignedBy?: string | null) {
+  const existing = await db
+    .select({ id: courseEnrollments.id })
+    .from(courseEnrollments)
+    .where(and(eq(courseEnrollments.userId, userId), eq(courseEnrollments.courseId, courseId)))
+    .limit(1);
+  if (existing.length) return;
+
   await db.insert(courseEnrollments).values({
-    id: `enroll-${Date.now()}-${Math.random()}`,
+    id: `enroll-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     userId,
     courseId,
+    assignedBy: assignedBy || null,
   });
+}
+
+export async function unassignCourseFromUser(userId: string, courseId: string) {
+  await db
+    .delete(courseEnrollments)
+    .where(and(eq(courseEnrollments.userId, userId), eq(courseEnrollments.courseId, courseId)));
+}
+
+/** Replaces a learner's whole course access list with `courseIds`. */
+export async function setUserEnrollments(userId: string, courseIds: string[], assignedBy?: string | null) {
+  const desired = Array.from(new Set(courseIds.filter(Boolean)));
+  const current = await db
+    .select({ courseId: courseEnrollments.courseId })
+    .from(courseEnrollments)
+    .where(eq(courseEnrollments.userId, userId));
+  const currentIds = new Set(current.map((row) => row.courseId));
+
+  const toRemove = current.map((row) => row.courseId).filter((id) => !desired.includes(id));
+  const toAdd = desired.filter((id) => !currentIds.has(id));
+
+  if (toRemove.length) {
+    await db
+      .delete(courseEnrollments)
+      .where(and(eq(courseEnrollments.userId, userId), inArray(courseEnrollments.courseId, toRemove)));
+  }
+  for (const courseId of toAdd) {
+    await assignCourseToUser(userId, courseId, assignedBy);
+  }
+  return desired;
+}
+
+/** Adds one course to many learners at once (bulk assign from the access matrix). */
+export async function assignCourseToUsers(userIds: string[], courseId: string, assignedBy?: string | null) {
+  for (const userId of userIds) {
+    await assignCourseToUser(userId, courseId, assignedBy);
+  }
+}
+
+export async function unassignCourseFromUsers(userIds: string[], courseId: string) {
+  if (!userIds.length) return;
+  await db
+    .delete(courseEnrollments)
+    .where(and(inArray(courseEnrollments.userId, userIds), eq(courseEnrollments.courseId, courseId)));
 }
 
 export async function getUserAssignedCourses(userId: string) {
@@ -260,7 +474,11 @@ export async function getQuizForLesson(lessonId: string) {
     const quizRes = await db.select().from(quizzes).where(eq(quizzes.lessonId, lessonId)).limit(1);
     if (!quizRes.length) return null;
     const quiz = quizRes[0];
-    const questions = await db.select().from(quizQuestions).where(eq(quizQuestions.quizId, quiz.id));
+    const questions = await db
+      .select()
+      .from(quizQuestions)
+      .where(eq(quizQuestions.quizId, quiz.id))
+      .orderBy(asc(quizQuestions.orderIndex), asc(quizQuestions.id));
     return { ...quiz, questions };
   } catch (err) {
     console.error('[Queries] Error in getQuizForLesson:', err);
@@ -268,17 +486,191 @@ export async function getQuizForLesson(lessonId: string) {
   }
 }
 
-export async function submitQuizAttempt(userId: string, quizId: string, score: number, passed: boolean) {
+export async function getQuizWithQuestions(quizId: string) {
   try {
-    const previousPass = await db.select().from(quizAttempts).where(and(eq(quizAttempts.userId, userId), eq(quizAttempts.quizId, quizId), eq(quizAttempts.passed, true))).limit(1);
-    await db.insert(quizAttempts).values({ id: `attempt-${Date.now()}`, userId, quizId, score, passed });
-    if (passed && previousPass.length === 0) {
-      const quizRes = await db.select().from(quizzes).where(eq(quizzes.id, quizId)).limit(1);
-      if (quizRes.length) await db.update(users).set({ points: sql`${users.points} + ${quizRes[0].points}` }).where(eq(users.id, userId));
-    }
+    const quizRes = await db.select().from(quizzes).where(eq(quizzes.id, quizId)).limit(1);
+    if (!quizRes.length) return null;
+    const questions = await db
+      .select()
+      .from(quizQuestions)
+      .where(eq(quizQuestions.quizId, quizId))
+      .orderBy(asc(quizQuestions.orderIndex), asc(quizQuestions.id));
+    return { ...quizRes[0], questions };
   } catch (err) {
-    console.error('[Queries] Error in submitQuizAttempt:', err);
+    console.error('[Queries] Error in getQuizWithQuestions:', err);
+    return null;
   }
+}
+
+export async function getUserQuizAttempts(userId: string, quizId: string) {
+  return withDatabaseFallback(
+    'getUserQuizAttempts',
+    () =>
+      db
+        .select()
+        .from(quizAttempts)
+        .where(and(eq(quizAttempts.userId, userId), eq(quizAttempts.quizId, quizId)))
+        .orderBy(desc(quizAttempts.createdAt))
+        .limit(20),
+    [],
+  );
+}
+
+export async function submitQuizAttempt(userId: string, quizId: string, score: number, passed: boolean) {
+  return withDatabaseFallback(
+    'submitQuizAttempt',
+    async () => {
+      const inserted = await db.insert(quizAttempts).values({
+        id: `attempt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        userId,
+        quizId,
+        score,
+        passed,
+        correctCount: 0,
+        totalQuestions: 0,
+      }).returning();
+      return inserted[0] || null;
+    },
+    null,
+  );
+}
+
+export type QuizAttemptSummary = {
+  attemptCount: number;
+  bestScore: number | null;
+  lastScore: number | null;
+  hasPassed: boolean;
+  lastAttemptAt: Date | null;
+};
+
+export async function getUserQuizSummary(userId: string, quizId: string): Promise<QuizAttemptSummary> {
+  const empty: QuizAttemptSummary = {
+    attemptCount: 0,
+    bestScore: null,
+    lastScore: null,
+    hasPassed: false,
+    lastAttemptAt: null,
+  };
+
+  return withDatabaseFallback(
+    'getUserQuizSummary',
+    async () => {
+      const attempts = await db
+        .select({ score: quizAttempts.score, passed: quizAttempts.passed, createdAt: quizAttempts.createdAt })
+        .from(quizAttempts)
+        .where(and(eq(quizAttempts.userId, userId), eq(quizAttempts.quizId, quizId)))
+        .orderBy(desc(quizAttempts.createdAt));
+
+      if (!attempts.length) return empty;
+      return {
+        attemptCount: attempts.length,
+        bestScore: attempts.reduce((best, attempt) => Math.max(best, attempt.score), 0),
+        lastScore: attempts[0].score,
+        hasPassed: attempts.some((attempt) => attempt.passed),
+        lastAttemptAt: attempts[0].createdAt,
+      };
+    },
+    empty,
+  );
+}
+
+export type GradedQuestion = {
+  questionId: string;
+  question: string;
+  options: string[];
+  selectedOptionIndex: number | null;
+  correctOptionIndex: number;
+  isCorrect: boolean;
+  explanation: string | null;
+};
+
+export type GradedAttempt = {
+  score: number;
+  passed: boolean;
+  correctCount: number;
+  totalQuestions: number;
+  pointsAwarded: number;
+  attemptCount: number;
+  bestScore: number;
+  breakdown: GradedQuestion[];
+};
+
+/**
+ * Grades a submitted attempt on the server. Clients only send the selected
+ * option per question id, so scores and correct answers never come from the browser.
+ */
+export async function gradeAndRecordQuizAttempt(params: {
+  userId: string;
+  quizId: string;
+  answers: Record<string, number>;
+  durationSeconds?: number | null;
+}): Promise<GradedAttempt> {
+  const quiz = await getQuizWithQuestions(params.quizId);
+  if (!quiz) throw new Error('QUIZ_NOT_FOUND');
+  if (!quiz.questions.length) throw new Error('QUIZ_EMPTY');
+
+  const previousAttempts = await db
+    .select({ score: quizAttempts.score, passed: quizAttempts.passed })
+    .from(quizAttempts)
+    .where(and(eq(quizAttempts.userId, params.userId), eq(quizAttempts.quizId, params.quizId)));
+
+  if (quiz.maxAttempts && previousAttempts.length >= quiz.maxAttempts) {
+    throw new Error('ATTEMPT_LIMIT_REACHED');
+  }
+
+  const breakdown: GradedQuestion[] = quiz.questions.map((question) => {
+    const raw = params.answers[question.id];
+    const selected = Number.isInteger(raw) ? raw : null;
+    return {
+      questionId: question.id,
+      question: question.question,
+      options: question.options,
+      selectedOptionIndex: selected,
+      correctOptionIndex: question.correctOptionIndex,
+      isCorrect: selected === question.correctOptionIndex,
+      explanation: question.explanation,
+    };
+  });
+
+  const totalQuestions = breakdown.length;
+  const correctCount = breakdown.filter((item) => item.isCorrect).length;
+  const score = Math.round((correctCount / totalQuestions) * 100);
+  const passed = score >= quiz.passingScore;
+  const alreadyPassed = previousAttempts.some((attempt) => attempt.passed);
+
+  const sanitizedAnswers: Record<string, number> = {};
+  for (const item of breakdown) {
+    if (item.selectedOptionIndex !== null) sanitizedAnswers[item.questionId] = item.selectedOptionIndex;
+  }
+
+  await db.insert(quizAttempts).values({
+    id: `attempt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    userId: params.userId,
+    quizId: params.quizId,
+    score,
+    passed,
+    correctCount,
+    totalQuestions,
+    durationSeconds: params.durationSeconds ?? null,
+    answers: sanitizedAnswers,
+  });
+
+  let pointsAwarded = 0;
+  if (passed && !alreadyPassed) {
+    pointsAwarded = quiz.points;
+    await db.update(users).set({ points: sql`${users.points} + ${quiz.points}` }).where(eq(users.id, params.userId));
+  }
+
+  return {
+    score,
+    passed,
+    correctCount,
+    totalQuestions,
+    pointsAwarded,
+    attemptCount: previousAttempts.length + 1,
+    bestScore: Math.max(score, ...previousAttempts.map((attempt) => attempt.score), 0),
+    breakdown,
+  };
 }
 
 // Assignments
@@ -389,11 +781,29 @@ export async function getLeaderboard() {
       avatarUrl: users.avatarUrl,
       points: users.points,
       role: users.role
-    }).from(users).orderBy(desc(users.points)).limit(50);
+    }).from(users).where(eq(users.status, 'approved')).orderBy(desc(users.points)).limit(50);
   } catch (err) {
     console.error('[Queries] Error in getLeaderboard:', err);
     return [];
   }
+}
+
+/** Learner counts per course, used by the admin course-access matrix. */
+export async function getCourseEnrollmentCounts() {
+  return withDatabaseFallback(
+    'getCourseEnrollmentCounts',
+    async () => {
+      const rows = await db
+        .select({ courseId: courseEnrollments.courseId, total: sql<number>`count(*)::int` })
+        .from(courseEnrollments)
+        .groupBy(courseEnrollments.courseId);
+      return rows.reduce<Record<string, number>>((acc, row) => {
+        acc[row.courseId] = Number(row.total) || 0;
+        return acc;
+      }, {});
+    },
+    {},
+  );
 }
 
 // Job Postings
@@ -521,14 +931,28 @@ export async function deleteJobPosting(jobId: string) {
   await db.delete(jobPostings).where(eq(jobPostings.id, jobId));
 }
 
-export async function createQuiz(data: { lessonId?: string; courseId?: string; title: string; passingScore?: number; points?: number }) {
+export async function createQuiz(data: {
+  lessonId?: string;
+  courseId?: string;
+  title: string;
+  description?: string;
+  passingScore?: number;
+  points?: number;
+  timeLimitMinutes?: number | null;
+  maxAttempts?: number | null;
+  shuffleQuestions?: boolean;
+}) {
   const newQuiz = {
     id: `quiz-${Date.now()}`,
     lessonId: data.lessonId || null,
     courseId: data.courseId || null,
     title: data.title,
+    description: data.description || null,
     passingScore: data.passingScore || 70,
-    points: data.points || 25
+    points: data.points || 25,
+    timeLimitMinutes: data.timeLimitMinutes ?? null,
+    maxAttempts: data.maxAttempts ?? null,
+    shuffleQuestions: data.shuffleQuestions ?? false,
   };
 
   const inserted = await db.insert(quizzes).values(newQuiz).returning();
@@ -536,15 +960,51 @@ export async function createQuiz(data: { lessonId?: string; courseId?: string; t
 }
 
 export async function createQuizQuestion(data: { quizId: string; question: string; options: string[]; correctOptionIndex: number; explanation?: string }) {
+  const existing = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(quizQuestions)
+    .where(eq(quizQuestions.quizId, data.quizId));
+
   const newQ = {
-    id: `qq-${Date.now()}-${Math.random()}`,
+    id: `qq-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     quizId: data.quizId,
     question: data.question,
     options: data.options,
     correctOptionIndex: data.correctOptionIndex,
-    explanation: data.explanation || null
+    explanation: data.explanation || null,
+    orderIndex: Number(existing[0]?.total) || 0,
   };
 
   const inserted = await db.insert(quizQuestions).values(newQ).returning();
   return inserted[0] || newQ;
+}
+
+/** Quiz list for the admin builder, with question counts and lesson context. */
+export async function getAdminQuizzes() {
+  return withDatabaseFallback(
+    'getAdminQuizzes',
+    async () => {
+      const rows = await db
+        .select({
+          quiz: quizzes,
+          lessonTitle: lessons.title,
+          questionCount: sql<number>`count(${quizQuestions.id})::int`,
+        })
+        .from(quizzes)
+        .leftJoin(lessons, eq(quizzes.lessonId, lessons.id))
+        .leftJoin(quizQuestions, eq(quizQuestions.quizId, quizzes.id))
+        .groupBy(quizzes.id, lessons.title);
+
+      return rows.map((row) => ({
+        ...row.quiz,
+        lessonTitle: row.lessonTitle,
+        questionCount: Number(row.questionCount) || 0,
+      }));
+    },
+    [],
+  );
+}
+
+export async function deleteQuiz(quizId: string) {
+  await db.delete(quizzes).where(eq(quizzes.id, quizId));
 }

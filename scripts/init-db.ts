@@ -54,6 +54,7 @@ export async function ensureSchema() {
       `ALTER TABLE course_enrollments ADD COLUMN IF NOT EXISTS enrolled_at timestamp NOT NULL DEFAULT now();`,
 
       // Quizzes & Quiz Attempts missing columns
+      `ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS description text;`,
       `ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS time_limit_minutes integer;`,
       `ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS max_attempts integer;`,
       `ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS shuffle_questions boolean NOT NULL DEFAULT false;`,
@@ -61,6 +62,16 @@ export async function ensureSchema() {
       `ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS total_questions integer NOT NULL DEFAULT 0;`,
       `ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS duration_seconds integer;`,
       `ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS answers jsonb;`,
+
+      // Quiz questions missing columns
+      `ALTER TABLE quiz_questions ADD COLUMN IF NOT EXISTS order_index integer NOT NULL DEFAULT 0;`,
+
+      // Blob storage URL pointers (content lives in S3, DB stores metadata + URLs)
+      `ALTER TABLE lessons ADD COLUMN IF NOT EXISTS markdown_url text;`,
+      `ALTER TABLE lessons ADD COLUMN IF NOT EXISTS initial_code_url text;`,
+      `ALTER TABLE lessons ADD COLUMN IF NOT EXISTS solution_code_url text;`,
+      `ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS questions_url text;`,
+      `ALTER TABLE assignments ADD COLUMN IF NOT EXISTS instructions_url text;`,
 
       // Assignment Submissions missing columns
       `ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS points_awarded integer NOT NULL DEFAULT 0;`,
@@ -111,8 +122,11 @@ export async function ensureSchema() {
         type text NOT NULL DEFAULT 'video',
         video_url text,
         markdown_content text,
+        markdown_url text,
         initial_code text,
+        initial_code_url text,
         solution_code text,
+        solution_code_url text,
         language text DEFAULT 'javascript',
         order_index integer NOT NULL,
         duration_minutes integer NOT NULL DEFAULT 10,
@@ -136,7 +150,8 @@ export async function ensureSchema() {
         points integer NOT NULL DEFAULT 25,
         time_limit_minutes integer,
         max_attempts integer,
-        shuffle_questions boolean NOT NULL DEFAULT false
+        shuffle_questions boolean NOT NULL DEFAULT false,
+        questions_url text
       );
 
       CREATE TABLE IF NOT EXISTS quiz_questions (
@@ -168,6 +183,7 @@ export async function ensureSchema() {
         course_id text REFERENCES courses(id) ON DELETE CASCADE,
         title text NOT NULL,
         instructions text NOT NULL,
+        instructions_url text,
         max_points integer NOT NULL DEFAULT 50
       );
 

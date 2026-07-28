@@ -1,6 +1,17 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getAllCourses, createCourse, createModule, createLesson, deleteCourse } from '@/lib/db/queries';
+import {
+  getAllCourses,
+  createCourse,
+  createModule,
+  createLesson,
+  deleteCourse,
+} from '@/lib/db/queries';
+import {
+  getCourseSlugForModule,
+  persistLessonContentToBlob,
+  type LessonContentUrls,
+} from '@/lib/db/persist-content';
 
 export async function GET() {
   const session = await getCurrentUser();
@@ -33,7 +44,35 @@ export async function POST(req: Request) {
     }
 
     if (action === 'createLesson') {
-      const lesson = await createLesson(body);
+      const { moduleId, markdownContent, initialCode, solutionCode, ...rest } = body;
+      const lessonId = rest.id || `lesson-${Date.now()}`;
+      const courseSlug = await getCourseSlugForModule(moduleId);
+
+      let contentFields: LessonContentUrls = {
+        markdownContent: markdownContent || null,
+        initialCode: initialCode || null,
+        solutionCode: solutionCode || null,
+        markdownUrl: null,
+        initialCodeUrl: null,
+        solutionCodeUrl: null,
+      };
+
+      if (courseSlug) {
+        const blobFields = await persistLessonContentToBlob(courseSlug, lessonId, {
+          markdownContent,
+          initialCode,
+          solutionCode,
+        });
+        contentFields = blobFields;
+      }
+
+      const lesson = await createLesson({
+        id: lessonId,
+        moduleId,
+        ...rest,
+        ...contentFields,
+      });
+
       return NextResponse.json({ lesson });
     }
 

@@ -60,8 +60,11 @@ export const lessons = pgTable('lessons', {
   type: text('type', { enum: ['video', 'markdown', 'code'] }).notNull().default('video'),
   videoUrl: text('video_url'),
   markdownContent: text('markdown_content'),
+  markdownUrl: text('markdown_url'),
   initialCode: text('initial_code'),
+  initialCodeUrl: text('initial_code_url'),
   solutionCode: text('solution_code'),
+  solutionCodeUrl: text('solution_code_url'),
   language: text('language').default('javascript'),
   orderIndex: integer('order_index').notNull(),
   durationMinutes: integer('duration_minutes').notNull().default(10),
@@ -90,6 +93,7 @@ export const quizzes = pgTable('quizzes', {
   // null = unlimited retakes
   maxAttempts: integer('max_attempts'),
   shuffleQuestions: boolean('shuffle_questions').notNull().default(false),
+  questionsUrl: text('questions_url'),
 });
 
 // Quiz Questions
@@ -125,6 +129,7 @@ export const assignments = pgTable('assignments', {
   courseId: text('course_id').references(() => courses.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
   instructions: text('instructions').notNull(),
+  instructionsUrl: text('instructions_url'),
   maxPoints: integer('max_points').notNull().default(50),
 });
 

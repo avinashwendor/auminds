@@ -6,6 +6,11 @@ import {
 } from './schema';
 import type { AccountStatus } from './schema';
 import { eq, and, desc, asc, inArray, sql } from 'drizzle-orm';
+import {
+  hydrateCourseLessons,
+  hydrateQuizQuestions,
+  hydrateAssignmentInstructions,
+} from '../course-content-hydrate';
 
 const allowMockUsers = process.env.NODE_ENV !== 'production' && process.env.ENABLE_MOCK_USERS !== 'false';
 
@@ -420,7 +425,7 @@ export async function getCourseFullTree(courseId: string) {
       }
       if (row.lesson) moduleMap.get(row.module.id).lessons.push(row.lesson);
     }
-    return { ...rows[0].course, modules: courseModules };
+    return hydrateCourseLessons({ ...rows[0].course, modules: courseModules });
   } catch (err) {
     console.error('[Queries] Error in getCourseFullTree:', err);
     return null;
@@ -474,12 +479,12 @@ export async function getQuizForLesson(lessonId: string) {
     const quizRes = await db.select().from(quizzes).where(eq(quizzes.lessonId, lessonId)).limit(1);
     if (!quizRes.length) return null;
     const quiz = quizRes[0];
-    const questions = await db
+    const dbQuestions = await db
       .select()
       .from(quizQuestions)
       .where(eq(quizQuestions.quizId, quiz.id))
       .orderBy(asc(quizQuestions.orderIndex), asc(quizQuestions.id));
-    return { ...quiz, questions };
+    return hydrateQuizQuestions(quiz, dbQuestions);
   } catch (err) {
     console.error('[Queries] Error in getQuizForLesson:', err);
     return null;
@@ -490,12 +495,12 @@ export async function getQuizWithQuestions(quizId: string) {
   try {
     const quizRes = await db.select().from(quizzes).where(eq(quizzes.id, quizId)).limit(1);
     if (!quizRes.length) return null;
-    const questions = await db
+    const dbQuestions = await db
       .select()
       .from(quizQuestions)
       .where(eq(quizQuestions.quizId, quizId))
       .orderBy(asc(quizQuestions.orderIndex), asc(quizQuestions.id));
-    return { ...quizRes[0], questions };
+    return hydrateQuizQuestions(quizRes[0], dbQuestions);
   } catch (err) {
     console.error('[Queries] Error in getQuizWithQuestions:', err);
     return null;
@@ -628,7 +633,7 @@ export async function gradeAndRecordQuizAttempt(params: {
       selectedOptionIndex: selected,
       correctOptionIndex: question.correctOptionIndex,
       isCorrect: selected === question.correctOptionIndex,
-      explanation: question.explanation,
+      explanation: question.explanation ?? null,
     };
   });
 
@@ -677,7 +682,7 @@ export async function gradeAndRecordQuizAttempt(params: {
 export async function getAssignmentForLesson(lessonId: string) {
   try {
     const res = await db.select().from(assignments).where(eq(assignments.lessonId, lessonId)).limit(1);
-    if (res.length) return res[0];
+    if (res.length) return hydrateAssignmentInstructions(res[0]);
   } catch (err) {
     console.error('[Queries] Error in getAssignmentForLesson:', err);
   }
@@ -892,27 +897,34 @@ export async function createModule(data: { courseId: string; title: string; orde
 }
 
 export async function createLesson(data: {
+  id?: string;
   moduleId: string;
   title: string;
   type: 'video' | 'markdown' | 'code';
-  videoUrl?: string;
-  markdownContent?: string;
-  initialCode?: string;
-  solutionCode?: string;
+  videoUrl?: string | null;
+  markdownContent?: string | null;
+  markdownUrl?: string | null;
+  initialCode?: string | null;
+  initialCodeUrl?: string | null;
+  solutionCode?: string | null;
+  solutionCodeUrl?: string | null;
   language?: string;
   orderIndex?: number;
   durationMinutes?: number;
   points?: number;
 }) {
   const newLesson = {
-    id: `lesson-${Date.now()}`,
+    id: data.id || `lesson-${Date.now()}`,
     moduleId: data.moduleId,
     title: data.title,
     type: data.type,
     videoUrl: data.videoUrl || null,
     markdownContent: data.markdownContent || null,
+    markdownUrl: data.markdownUrl || null,
     initialCode: data.initialCode || null,
+    initialCodeUrl: data.initialCodeUrl || null,
     solutionCode: data.solutionCode || null,
+    solutionCodeUrl: data.solutionCodeUrl || null,
     language: data.language || 'javascript',
     orderIndex: data.orderIndex ?? 1,
     durationMinutes: data.durationMinutes || 15,
@@ -921,6 +933,59 @@ export async function createLesson(data: {
 
   const inserted = await db.insert(lessons).values(newLesson).returning();
   return inserted[0] || newLesson;
+}
+
+export async function updateLesson(
+  lessonId: string,
+  data: Partial<{
+    title: string;
+    type: 'video' | 'markdown' | 'code';
+    videoUrl: string | null;
+    markdownContent: string | null;
+    markdownUrl: string | null;
+    initialCode: string | null;
+    initialCodeUrl: string | null;
+    solutionCode: string | null;
+    solutionCodeUrl: string | null;
+    language: string;
+    orderIndex: number;
+    durationMinutes: number;
+    points: number;
+  }>,
+) {
+  const updated = await db.update(lessons).set(data).where(eq(lessons.id, lessonId)).returning();
+  return updated[0] || null;
+}
+
+export async function updateModule(
+  moduleId: string,
+  data: Partial<{ title: string; orderIndex: number }>,
+) {
+  const updated = await db.update(modules).set(data).where(eq(modules.id, moduleId)).returning();
+  return updated[0] || null;
+}
+
+export async function createAssignment(data: {
+  id?: string;
+  lessonId?: string | null;
+  courseId?: string | null;
+  title: string;
+  instructions: string;
+  instructionsUrl?: string | null;
+  maxPoints?: number;
+}) {
+  const newAssignment = {
+    id: data.id || `ass-${Date.now()}`,
+    lessonId: data.lessonId || null,
+    courseId: data.courseId || null,
+    title: data.title,
+    instructions: data.instructions,
+    instructionsUrl: data.instructionsUrl || null,
+    maxPoints: data.maxPoints || 50,
+  };
+
+  const inserted = await db.insert(assignments).values(newAssignment).returning();
+  return inserted[0] || newAssignment;
 }
 
 export async function deleteCourse(courseId: string) {
@@ -932,18 +997,20 @@ export async function deleteJobPosting(jobId: string) {
 }
 
 export async function createQuiz(data: {
-  lessonId?: string;
-  courseId?: string;
+  id?: string;
+  lessonId?: string | null;
+  courseId?: string | null;
   title: string;
-  description?: string;
+  description?: string | null;
   passingScore?: number;
   points?: number;
   timeLimitMinutes?: number | null;
   maxAttempts?: number | null;
   shuffleQuestions?: boolean;
+  questionsUrl?: string | null;
 }) {
   const newQuiz = {
-    id: `quiz-${Date.now()}`,
+    id: data.id || `quiz-${Date.now()}`,
     lessonId: data.lessonId || null,
     courseId: data.courseId || null,
     title: data.title,
@@ -953,6 +1020,7 @@ export async function createQuiz(data: {
     timeLimitMinutes: data.timeLimitMinutes ?? null,
     maxAttempts: data.maxAttempts ?? null,
     shuffleQuestions: data.shuffleQuestions ?? false,
+    questionsUrl: data.questionsUrl || null,
   };
 
   const inserted = await db.insert(quizzes).values(newQuiz).returning();

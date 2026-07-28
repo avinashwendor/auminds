@@ -32,7 +32,7 @@ export async function ensureSchema() {
       );
     `);
 
-    // 2. Add columns individually to existing users table if migrating from older schema
+    // 2. Add columns individually if migrating from older database schemas
     const alterColumns = [
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS username text;`,
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS email text;`,
@@ -48,6 +48,24 @@ export async function ensureSchema() {
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url text;`,
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at timestamp NOT NULL DEFAULT now();`,
       `UPDATE users SET status = 'approved' WHERE status IS NULL;`,
+      
+      // Course Enrollments missing columns
+      `ALTER TABLE course_enrollments ADD COLUMN IF NOT EXISTS assigned_by text;`,
+      `ALTER TABLE course_enrollments ADD COLUMN IF NOT EXISTS enrolled_at timestamp NOT NULL DEFAULT now();`,
+
+      // Quizzes & Quiz Attempts missing columns
+      `ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS time_limit_minutes integer;`,
+      `ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS max_attempts integer;`,
+      `ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS shuffle_questions boolean NOT NULL DEFAULT false;`,
+      `ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS correct_count integer NOT NULL DEFAULT 0;`,
+      `ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS total_questions integer NOT NULL DEFAULT 0;`,
+      `ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS duration_seconds integer;`,
+      `ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS answers jsonb;`,
+
+      // Assignment Submissions missing columns
+      `ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS points_awarded integer NOT NULL DEFAULT 0;`,
+      `ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS feedback text;`,
+      `ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS reviewed_at timestamp;`,
     ];
 
     for (const stmt of alterColumns) {

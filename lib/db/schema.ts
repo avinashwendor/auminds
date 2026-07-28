@@ -1,13 +1,23 @@
 import { pgTable, text, integer, boolean, timestamp, jsonb } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
+// Account lifecycle: self-signups land on `pending` until an admin approves them.
+export const ACCOUNT_STATUSES = ['pending', 'approved', 'rejected', 'suspended'] as const;
+export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
+
 // Users table
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
   username: text('username').notNull().unique(),
+  email: text('email'),
   passwordHash: text('password_hash').notNull(),
   name: text('name').notNull(),
   role: text('role', { enum: ['admin', 'student'] }).notNull().default('student'),
+  status: text('status', { enum: ACCOUNT_STATUSES }).notNull().default('pending'),
+  statusNote: text('status_note'),
+  signupGoal: text('signup_goal'),
+  reviewedAt: timestamp('reviewed_at'),
+  reviewedBy: text('reviewed_by'),
   points: integer('points').notNull().default(0),
   avatarUrl: text('avatar_url'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -30,6 +40,7 @@ export const courseEnrollments = pgTable('course_enrollments', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   courseId: text('course_id').notNull().references(() => courses.id, { onDelete: 'cascade' }),
+  assignedBy: text('assigned_by'),
   enrolledAt: timestamp('enrolled_at').defaultNow().notNull(),
 });
 
@@ -71,8 +82,14 @@ export const quizzes = pgTable('quizzes', {
   lessonId: text('lesson_id').references(() => lessons.id, { onDelete: 'cascade' }),
   courseId: text('course_id').references(() => courses.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
+  description: text('description'),
   passingScore: integer('passing_score').notNull().default(70),
   points: integer('points').notNull().default(25),
+  // null = untimed, otherwise a countdown is shown and the attempt auto-submits
+  timeLimitMinutes: integer('time_limit_minutes'),
+  // null = unlimited retakes
+  maxAttempts: integer('max_attempts'),
+  shuffleQuestions: boolean('shuffle_questions').notNull().default(false),
 });
 
 // Quiz Questions
@@ -83,6 +100,7 @@ export const quizQuestions = pgTable('quiz_questions', {
   options: jsonb('options').$type<string[]>().notNull(),
   correctOptionIndex: integer('correct_option_index').notNull(),
   explanation: text('explanation'),
+  orderIndex: integer('order_index').notNull().default(0),
 });
 
 // Quiz Attempts
@@ -92,6 +110,11 @@ export const quizAttempts = pgTable('quiz_attempts', {
   quizId: text('quiz_id').notNull().references(() => quizzes.id, { onDelete: 'cascade' }),
   score: integer('score').notNull(),
   passed: boolean('passed').notNull(),
+  correctCount: integer('correct_count').notNull().default(0),
+  totalQuestions: integer('total_questions').notNull().default(0),
+  durationSeconds: integer('duration_seconds'),
+  // Map of questionId -> selected option index, used to rebuild the review screen
+  answers: jsonb('answers').$type<Record<string, number>>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

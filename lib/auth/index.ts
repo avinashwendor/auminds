@@ -50,6 +50,30 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   }
 }
 
+/**
+ * Session user re-validated against the database, so approvals revoked after the
+ * cookie was issued (rejected/suspended/deleted accounts) lose access right away.
+ */
+export async function getApprovedUser(): Promise<SessionUser | null> {
+  const session = await getCurrentUser();
+  if (!session) return null;
+
+  const { getUserById } = await import('@/lib/db/queries');
+  const record = await getUserById(session.id);
+  if (!record) return null;
+
+  const status = (record.status || 'approved') as SessionUser['status'];
+  if (status !== 'approved') return null;
+
+  return {
+    id: record.id,
+    username: record.username,
+    name: record.name,
+    role: record.role as SessionUser['role'],
+    status,
+  };
+}
+
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   return bcrypt.compare(password, hash);
 }

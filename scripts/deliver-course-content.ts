@@ -98,10 +98,8 @@ async function upsertQuiz(
     await createQuiz({ id: def.id, ...quizPayload });
   }
 
-  // Keep DB rows as fallback when blob is unavailable; skip duplicate storage when blob is primary
-  if (!questionsUrl) {
-    await replaceQuizQuestions(def.id, def.questions);
-  }
+  // Always keep quiz_questions in DB as fallback when blob fetch is unavailable
+  await replaceQuizQuestions(def.id, def.questions);
 
   const storage = questionsUrl ? 'blob' : 'inline';
   console.log(`    ↻ Quiz: ${def.title} (${def.questions.length} questions) [${storage}]`);

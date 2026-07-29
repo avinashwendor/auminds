@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "db:push": "drizzle-kit push",
     "db:seed": "npx tsx lib/db/seed.ts",
-    "db:deliver-course": "npx tsx scripts/deliver-course-content.ts"
+    "db:deliver-course": "npx tsx scripts/deliver-course-content.ts",
+    "db:repair-content": "npx tsx scripts/repair-lesson-content.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1095.0",

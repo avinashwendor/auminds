@@ -26,7 +26,13 @@ scripts/deliver-course-content.ts ← Idempotent DB + blob migration script
 | **S3 blob** | Markdown lectures, code labs, quiz question JSON, assignment instructions |
 | **Postgres** | Course structure, metadata, blob URLs, student progress |
 
-When S3 is configured, `npm run db:deliver-course` uploads all body content to blob storage and saves **URLs only** in the database. The app hydrates content at read time (server-side) so the student UI always receives full text.
+When S3 is configured, `npm run db:deliver-course` uploads body content to blob storage **and keeps a Postgres copy** as fallback. The app prefers inline DB text first, then fetches from S3 if needed.
+
+If content disappears after migration, run:
+
+```bash
+DATABASE_URL="..." S3_*=... npm run db:repair-content
+```
 
 **Blob key layout:**
 ```

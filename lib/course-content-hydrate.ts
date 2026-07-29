@@ -26,11 +26,14 @@ async function resolveTextField(
   inline: string | null | undefined,
   url: string | null | undefined,
 ): Promise<string | null> {
+  if (inline) return inline;
+
   if (url) {
     const remote = await fetchCourseContentAsset(url);
     if (remote) return remote;
   }
-  return inline ?? null;
+
+  return null;
 }
 
 export async function hydrateLessonContent<T extends LessonRecord>(lesson: T): Promise<T> {

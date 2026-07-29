@@ -35,7 +35,7 @@ export interface LessonContentUrls {
 
 /**
  * Uploads lesson body content to blob storage and returns DB-ready fields.
- * When blob is configured, inline text is cleared and URLs are stored instead.
+ * Keeps inline DB text as fallback so content still loads if S3 is unavailable.
  */
 export async function persistLessonContentToBlob(
   courseSlug: string,
@@ -51,9 +51,9 @@ export async function persistLessonContentToBlob(
   }
 
   const result: LessonContentUrls = {
-    markdownContent: null,
-    initialCode: null,
-    solutionCode: null,
+    markdownContent: content.markdownContent ?? null,
+    initialCode: content.initialCode ?? null,
+    solutionCode: content.solutionCode ?? null,
     markdownUrl: null,
     initialCodeUrl: null,
     solutionCodeUrl: null,
@@ -132,6 +132,6 @@ export async function persistAssignmentInstructionsToBlob(
 
   return {
     instructionsUrl: uploaded.url,
-    instructions: null,
+    instructions,
   };
 }

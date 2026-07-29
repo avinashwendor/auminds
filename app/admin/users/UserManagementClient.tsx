@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { 
   UserPlus, Shield, UserCheck, BookOpen, Check, AlertCircle, Search, 
   Filter, CheckCircle2, Clock, XCircle, Ban, Edit3, Key, Trash2, 
-  Layers, ChevronRight, UserX, AlertTriangle, ArrowRight, Sparkles, RefreshCw, X
+  Layers, ChevronRight, UserX, AlertTriangle, ArrowRight, Sparkles, RefreshCw, X, Activity
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -871,6 +872,14 @@ export default function UserManagementClient({ users: initialUsers, courses }: U
                             <span className="text-[#F3B61F] font-bold">{u.points}</span> <span className="text-[#919EAB]">pts</span>
                           </td>
                           <td className="p-3.5 text-right pr-4 space-x-1">
+                            <Link
+                              href={`/admin/progress?userId=${u.id}`}
+                              title="View student progress"
+                              className="inline-flex p-1.5 rounded-lg bg-[#212B36] hover:bg-[#3366FF]/20 text-[#3366FF] transition-colors"
+                            >
+                              <Activity className="size-3.5" />
+                            </Link>
+
                             <button
                               onClick={() => {
                                 setEditingUser(u);

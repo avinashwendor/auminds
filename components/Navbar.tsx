@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import type { SessionUser } from '@/lib/auth';
 import {
+  Activity,
   ArrowRight,
   BookOpen,
   BriefcaseBusiness,
@@ -40,10 +41,11 @@ const adminLinks = [
   { href: '/admin', label: 'Operations', code: '01', icon: LayoutDashboard },
   { href: '/admin/courses', label: 'Courses', code: '02', icon: BookOpen },
   { href: '/admin/users', label: 'Users', code: '03', icon: Users },
-  { href: '/admin/quizzes', label: 'Quizzes', code: '04', icon: HelpCircle },
-  { href: '/admin/assignments', label: 'Reviews', code: '05', icon: CheckSquare },
-  { href: '/admin/jobs', label: 'Job board', code: '06', icon: BriefcaseBusiness },
-  { href: '/code-editor', label: 'Code editor', code: '07', icon: Code2 },
+  { href: '/admin/progress', label: 'Progress', code: '04', icon: Activity },
+  { href: '/admin/quizzes', label: 'Quizzes', code: '05', icon: HelpCircle },
+  { href: '/admin/assignments', label: 'Reviews', code: '06', icon: CheckSquare },
+  { href: '/admin/jobs', label: 'Job board', code: '07', icon: BriefcaseBusiness },
+  { href: '/code-editor', label: 'Code editor', code: '08', icon: Code2 },
 ];
 
 function Brand({ compact = false }: { compact?: boolean }) {

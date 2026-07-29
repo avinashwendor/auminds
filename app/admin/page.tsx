@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 const actions = [
   { href: '/admin/courses', label: 'Curriculum Network', detail: 'Create & manage courses, modules, and video/code lessons', icon: BookOpen, color: '#00AB55' },
   { href: '/admin/users', label: 'People & Access', detail: 'Manage student accounts and course enrollments', icon: Users, color: '#3366FF' },
+  { href: '/admin/progress', label: 'Student Progress', detail: 'Track lesson completions, quiz scores, and assignment activity', icon: Activity, color: '#00B8D9' },
   { href: '/admin/quizzes', label: 'Assessment Builder', detail: 'Build quizzes with multiple choice options & explanations', icon: HelpCircle, color: '#FFC107' },
   { href: '/admin/assignments', label: 'Submission Queue', detail: 'Grade student GitHub submissions and issue feedback', icon: CheckSquare, color: '#826AF9' },
   { href: '/admin/jobs', label: 'Opportunity Board', detail: 'Publish & curate engineering jobs for students', icon: Briefcase, color: '#FF4842' },
